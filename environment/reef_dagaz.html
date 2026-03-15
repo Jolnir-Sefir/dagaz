@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Project Dagaz — Coral Reef Monitoring (Boundary Fix v6)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #020617; overflow-x: hidden; }
+  input[type=range] { -webkit-appearance: none; appearance: none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: white; cursor: pointer; }
+  input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: white; cursor: pointer; border: none; }
+  @keyframes rise { 0%{transform:translateY(0);opacity:.04} 50%{opacity:.07} 100%{transform:translateY(-105vh);opacity:0} }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ============================================================================
+// REAL DATA from reef_environment.py (seed=42) and metabolic_sensitivity.csv
+// ============================================================================
+const RAW=[[0,"observe-water",0.85,0.75,0.72,0.12,0.18,0.882,0.919,0.278,0.094,0.0,0.447],[1,"observe-water",0.861,0.728,0.736,0.118,0.185,0.867,0.92,0.304,0.052,0.0,0.451],[2,"observe-water",0.878,0.739,0.736,0.128,0.2,0.855,0.92,0.289,0.109,0.0,0.445],[3,"observe-water",0.883,0.738,0.783,0.133,0.209,0.847,0.915,0.311,0.09,0.0,0.445],[4,"observe-water",0.909,0.73,0.814,0.092,0.243,0.832,0.914,0.329,0.088,0.0,0.459],[5,"observe-water",0.877,0.737,0.86,0.066,0.284,0.829,0.912,0.326,0.088,0.0,0.479],[6,"observe-water",0.864,0.742,0.867,0.067,0.249,0.821,0.909,0.315,0.107,0.0,0.502],[7,"observe-water",0.85,0.733,0.895,0.064,0.24,0.798,0.913,0.361,0.118,0.0,0.479],[8,"observe-water",0.833,0.708,0.93,0.061,0.251,0.783,0.908,0.345,0.108,0.0,0.508],[9,"observe-water",0.825,0.682,0.923,0.082,0.298,0.759,0.9,0.283,0.089,0.0,0.485],[10,"observe-water",0.827,0.718,0.942,0.084,0.283,0.74,0.898,0.263,0.07,0.0,0.482],[11,"observe-water",0.863,0.757,0.923,0.103,0.299,0.736,0.897,0.232,0.039,0.0,0.433],[12,"observe-water",0.847,0.744,0.955,0.091,0.315,0.724,0.896,0.277,0.105,0.0,0.451],[13,"observe-water",0.832,0.729,0.959,0.078,0.32,0.712,0.897,0.229,0.116,0.0,0.436],[14,"observe-water",0.845,0.75,0.992,0.065,0.324,0.695,0.894,0.237,0.068,0.0,0.418],[15,"observe-water",0.845,0.75,1.0,0.06,0.369,0.679,0.885,0.255,0.119,0.0,0.467],[16,"observe-water",0.842,0.739,1.0,0.086,0.367,0.668,0.879,0.308,0.088,0.0,0.465],[17,"observe-water",0.827,0.741,1.0,0.086,0.38,0.655,0.878,0.303,0.107,0.0,0.442],[18,"observe-water",0.799,0.721,1.0,0.093,0.399,0.643,0.877,0.303,0.062,0.0,0.475],[19,"observe-water",0.828,0.696,0.994,0.091,0.391,0.642,0.881,0.298,0.101,0.0,0.445],[20,"observe-water",0.867,0.693,1.0,0.111,0.361,0.626,0.875,0.295,0.084,0.0,0.428],[21,"observe-water",0.861,0.702,1.0,0.123,0.363,0.608,0.873,0.265,0.064,0.0,0.423],[22,"observe-water",0.857,0.688,1.0,0.125,0.365,0.593,0.873,0.313,0.113,0.0,0.455],[23,"observe-water",0.835,0.676,1.0,0.127,0.338,0.585,0.871,0.302,0.078,0.0,0.45],[24,"observe-water",0.796,0.654,0.992,0.094,0.344,0.566,0.87,0.258,0.058,0.0,0.433],[25,"observe-water",0.79,0.633,1.0,0.169,0.322,0.548,0.868,0.313,0.074,0.0,0.478],[26,"observe-water",0.789,0.665,1.0,0.168,0.302,0.543,0.866,0.347,0.089,0.0,0.426],[27,"observe-water",0.784,0.645,1.0,0.146,0.282,0.53,0.864,0.312,0.124,0.0,0.452],[28,"observe-water",0.814,0.659,1.0,0.133,0.265,0.519,0.861,0.292,0.067,0.0,0.426],[29,"observe-water",0.792,0.688,0.985,0.099,0.275,0.506,0.861,0.248,0.048,0.0,0.44],[30,"observe-water",0.779,0.658,1.0,0.108,0.29,0.49,0.86,0.319,0.095,0.0,0.445],[31,"observe-water",0.797,0.649,1.0,0.074,0.291,0.473,0.855,0.815,0.389,0.0,0.405],[32,"observe-water",0.789,0.651,1.0,0.079,0.267,0.459,0.841,0.75,0.341,0.0,0.406],[33,"observe-water",0.762,0.656,0.991,0.094,0.293,0.445,0.821,0.941,0.473,0.0,0.396],[34,"observe-water",0.757,0.679,0.996,0.057,0.277,0.426,0.805,0.933,0.459,0.0,0.437],[35,"observe-water",0.777,0.666,1.0,0.056,0.275,0.41,0.797,0.848,0.427,0.0,0.417],[36,"observe-water",0.755,0.673,1.0,0.029,0.274,0.393,0.786,0.905,0.461,0.0,0.396],[37,"observe-water",0.745,0.67,0.984,0.021,0.27,0.378,0.775,0.812,0.35,0.0,0.398],[38,"observe-water",0.77,0.654,0.986,0.03,0.265,0.351,0.764,0.814,0.388,0.0,0.407],[39,"observe-water",0.771,0.641,0.981,0.023,0.278,0.333,0.752,0.938,0.465,0.0,0.419],[40,"observe-water",0.779,0.629,0.992,0.014,0.278,0.319,0.742,0.779,0.357,0.0,0.426],[41,"observe-water",0.761,0.627,0.99,0.004,0.255,0.317,0.735,0.281,0.083,0.106,0.495],[42,"observe-water",0.742,0.604,1.0,0.015,0.263,0.3,0.733,0.287,0.073,0.142,0.466],[43,"observe-water",0.723,0.586,0.998,0.0,0.28,0.291,0.727,0.319,0.058,0.253,0.495],[44,"observe-water",0.647,0.595,1.0,0.013,0.252,0.273,0.723,0.307,0.07,0.28,0.483],[45,"observe-water",0.636,0.621,1.0,0.024,0.258,0.267,0.725,0.314,0.09,0.281,0.448],[46,"observe-water",0.577,0.604,0.987,0.029,0.254,0.255,0.72,0.283,0.064,0.358,0.438],[47,"observe-water",0.537,0.631,0.988,0.029,0.251,0.252,0.715,0.322,0.099,0.333,0.464],[48,"observe-water",0.498,0.637,0.918,0.016,0.269,0.234,0.715,0.269,0.065,0.466,0.466],[49,"request-guidance",0.43,0.646,0.818,0.013,0.236,0.208,0.709,0.304,0.072,0.473,0.432],[50,"request-guidance",0.296,0.599,0.743,0.0,0.262,0.189,0.706,0.314,0.111,0.568,0.474],[51,"request-guidance",0.163,0.584,0.677,0.029,0.238,0.166,0.706,0.313,0.105,0.672,0.485],[52,"request-guidance",0.097,0.574,0.602,0.068,0.228,0.15,0.702,0.322,0.107,0.648,0.397],[53,"request-guidance",0.016,0.61,0.515,0.067,0.243,0.122,0.701,0.291,0.046,0.663,0.434],[54,"request-guidance",0.0,0.558,0.412,0.053,0.233,0.094,0.696,0.328,0.085,0.796,0.46],[55,"request-guidance",0.0,0.552,0.309,0.054,0.212,0.067,0.697,0.303,0.07,0.79,0.466],[56,"request-guidance",0.0,0.529,0.24,0.038,0.234,0.035,0.693,0.284,0.076,0.648,0.448],[57,"request-guidance",0.0,0.491,0.213,0.02,0.265,0.007,0.689,0.263,0.074,0.571,0.455],[58,"request-guidance",0.0,0.457,0.145,0.027,0.214,0.0,0.686,0.276,0.052,0.494,0.448],[59,"request-guidance",0.0,0.416,0.08,0.062,0.234,0.0,0.687,0.277,0.084,0.407,0.433],[60,"request-guidance",0.0,0.378,0.032,0.035,0.23,0.0,0.683,0.296,0.067,0.38,0.446],[61,"request-guidance",0.0,0.346,0.0,0.025,0.237,0.015,0.676,0.306,0.076,0.34,0.438],[62,"request-guidance",0.001,0.367,0.0,0.025,0.222,0.004,0.671,0.288,0.087,0.276,0.459],[63,"request-guidance",0.0,0.353,0.0,0.002,0.247,0.001,0.665,0.293,0.094,0.247,0.43],[64,"request-guidance",0.018,0.32,0.0,0.001,0.237,0.006,0.664,0.294,0.1,0.184,0.46],[65,"request-guidance",0.0,0.322,0.0,0.0,0.257,0.003,0.665,0.263,0.058,0.162,0.437],[66,"request-guidance",0.012,0.339,0.013,0.002,0.27,0.001,0.661,0.239,0.055,0.145,0.454],[67,"request-guidance",0.0,0.336,0.0,0.0,0.24,0.0,0.657,0.312,0.089,0.14,0.468],[68,"request-guidance",0.04,0.345,0.0,0.0,0.238,0.005,0.654,0.273,0.048,0.092,0.455],[69,"request-guidance",0.097,0.356,0.0,0.0,0.25,0.001,0.651,0.27,0.113,0.067,0.467],[70,"request-guidance",0.136,0.383,0.0,0.031,0.268,0.0,0.649,0.262,0.036,0.079,0.435]];
+
+
+const SENS={d:[[.005,.01,2,9,0,null,1.29,0,4,9],[.005,.02,4,9,0,null,1.86,0,4,9],[.005,.03,6,9,1,52,2,1,0,9],[.005,.04,8,9,1,42,2,1,0,9],[.005,.05,10,9,1,36,2,1,0,9],[.005,.07,14,9,1,27,2,1,0,9],[.005,.1,20,9,1,21,2,1,0,9],[.005,.13,26,9,1,17,2,1,0,9],[.005,.15,30,9,1,15,2,1,0,9],[.005,.2,40,9,1,12,2,1,0,9],[.01,.01,1,9,0,null,1,0,4,9],[.01,.02,2,9,1,52,1.57,1,0,9],[.01,.03,3,9,1,42,2,1,0,9],[.01,.04,4,9,1,36,2,1,0,9],[.01,.05,5,9,1,31,2,1,0,9],[.01,.07,7,9,1,25,2,1,0,9],[.01,.1,10,9,1,19,2,1,0,9],[.01,.13,13,9,1,16,2,1,0,9],[.01,.15,15,9,1,14,2,1,0,9],[.01,.2,20,9,1,12,2,1,0,9],[.015,.01,.67,9,1,52,.71,1,0,9],[.015,.02,1.33,9,1,42,1.29,1,0,9],[.015,.03,2,9,1,36,1.86,1,0,9],[.015,.04,2.67,9,1,31,2,1,0,9],[.015,.05,3.33,9,1,27,2,1,0,9],[.015,.07,4.67,9,1,22,2,1,0,9],[.015,.1,6.67,9,1,18,2,1,0,9],[.015,.13,8.67,9,1,15,2,1,0,9],[.015,.15,10,9,1,14,2,1,0,9],[.015,.2,13.33,9,1,11,2,1,0,9],[.02,.01,.5,9,1,42,.43,1,0,9],[.02,.02,1,9,1,36,1,1,0,9],[.02,.03,1.5,9,1,31,1.57,1,0,9],[.02,.04,2,9,1,27,2,1,0,9],[.02,.05,2.5,9,1,25,2,1,0,9],[.02,.07,3.5,9,1,21,2,1,0,9],[.02,.1,5,9,1,17,2,1,0,9],[.02,.13,6.5,9,1,14,2,1,0,9],[.02,.15,7.5,9,1,13,2,1,0,9],[.02,.2,10,9,1,11,2,1,0,9],[.03,.01,.33,9,1,31,0,0,8,9],[.03,.02,.67,9,1,27,.43,1,0,9],[.03,.03,1,9,1,25,1,1,0,9],[.03,.04,1.33,9,1,22,1.57,1,0,9],[.03,.05,1.67,9,1,21,2,1,0,9],[.03,.07,2.33,9,1,18,2,1,0,9],[.03,.1,3.33,9,1,15,2,1,0,9],[.03,.13,4.33,9,1,13,2,1,0,9],[.03,.15,5,9,1,12,2,1,0,9],[.03,.2,6.67,9,1,10,2,1,0,9],[.04,.01,.25,9,1,25,0,0,8,9],[.04,.02,.5,9,1,22,0,0,8,9],[.04,.03,.75,9,1,21,.43,1,0,9],[.04,.04,1,9,1,19,1,1,0,9],[.04,.05,1.25,9,1,18,1.57,1,0,9],[.04,.07,1.75,9,1,16,2,1,0,9],[.04,.1,2.5,9,1,14,2,1,0,9],[.04,.13,3.25,9,1,12,2,1,0,9],[.04,.15,3.75,9,1,11,2,1,0,9],[.04,.2,5,9,1,10,2,1,0,9],[.06,.01,.17,5,1,18,0,0,8,9],[.06,.02,.33,5,1,17,0,0,8,9],[.06,.03,.5,7,1,16,0,0,8,9],[.06,.04,.67,8,1,15,0,0,8,9],[.06,.05,.83,7,1,14,.43,1,0,9],[.06,.07,1.17,7,1,13,1.57,1,0,9],[.06,.1,1.67,7,1,12,2,1,0,9],[.06,.13,2.17,8,1,10,2,1,0,9],[.06,.15,2.5,8,1,10,2,1,0,9],[.06,.2,3.33,8,1,9,2,1,0,9],[.08,.01,.12,4,1,14,0,0,8,9],[.08,.02,.25,4,1,14,0,0,8,9],[.08,.03,.38,4,1,13,0,0,8,9],[.08,.04,.5,5,1,13,0,0,8,9],[.08,.05,.62,5,1,12,0,0,8,9],[.08,.07,.88,5,1,11,.43,1,0,9],[.08,.1,1.25,6,1,10,2,1,0,9],[.08,.13,1.62,8,1,9,2,1,0,9],[.08,.15,1.88,7,1,9,2,1,0,9],[.08,.2,2.5,7,1,8,2,1,0,9],[.1,.01,.1,5,1,12,0,0,8,9],[.1,.02,.2,5,1,12,0,0,8,9],[.1,.03,.3,5,1,11,0,0,8,9],[.1,.04,.4,5,1,11,0,0,8,9],[.1,.05,.5,5,1,10,0,0,8,9],[.1,.07,.7,5,1,10,0,0,8,9],[.1,.1,1,5,1,9,1,1,0,9],[.1,.13,1.3,5,1,9,2,1,0,9],[.1,.15,1.5,5,1,8,2,1,0,9],[.1,.2,2,8,1,8,2,1,0,9],[.12,.01,.08,5,1,11,0,0,8,9],[.12,.02,.17,5,1,10,0,0,8,9],[.12,.03,.25,5,1,10,0,0,8,9],[.12,.04,.33,5,1,10,0,0,8,9],[.12,.05,.42,5,1,9,0,0,8,9],[.12,.07,.58,5,1,9,0,0,8,9],[.12,.1,.83,5,1,8,0,0,8,9],[.12,.13,1.08,5,1,8,1.57,1,0,9],[.12,.15,1.25,5,1,8,2,1,0,9],[.12,.2,1.67,5,1,7,2,1,0,9],[.15,.01,.07,5,1,9,0,0,8,9],[.15,.02,.13,5,1,9,0,0,8,9],[.15,.03,.2,5,1,9,0,0,8,9],[.15,.04,.27,5,1,8,0,0,8,9],[.15,.05,.33,5,1,8,0,0,8,9],[.15,.07,.47,4,1,8,0,0,8,9],[.15,.1,.67,4,1,7,0,0,8,9],[.15,.13,.87,4,1,7,0,0,8,9],[.15,.15,1,4,1,7,1,1,0,9],[.15,.2,1.33,5,1,6,2,1,0,9]],rn:[.005,.01,.015,.02,.03,.04,.06,.08,.1,.12,.15],rw:[.01,.02,.03,.04,.05,.07,.1,.13,.15,.2]};
+
+const BF_CAPITAL=[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.06,0.16,0.28,0.28,0.36,0.44,0.14,0.32,0.0,0.08,0.22,0.38,0.38,0.02,0.18,0.4,0.12,0.22,0.38,0.16,0.32,0.72,1.14,1.64,2.06,2.52,2.5,3.0,3.0,3.0,3.0,2.5,3.0,3.0,3.0,3.0,3.0,3.0,3.0];
+const BF_PRECISION=[0.049,0.077,0.106,0.136,0.163,0.196,0.233,0.274,0.304,0.336,0.372,0.402,0.43,0.464,0.501,0.533,0.567,0.599,0.631,0.664,0.697,0.73,0.761,0.794,0.824,0.852,0.884,0.905,0.919,0.934,0.94,0.938,0.946,0.943,0.944,0.944,0.942,0.946,0.944,0.939,0.941,0.94,0.935,0.942,0.944,0.948,0.95,0.946,0.941,0.933,0.931,0.924,0.918,0.904,0.905,0.901,0.901,0.902,0.899,0.901,0.896,0.889,0.894,0.891,0.894,0.896,0.899,0.893,0.902,0.906,0.908];
+
+const REEF_DATA = RAW.map(r => ({ c:r[0], action:r[1], coral:r[2], o2:r[3], fish:r[4], algae:r[5], nutr:r[6], power:r[7], sensor:r[8], current:r[9], turb:r[10], pathogen:r[11], temp:r[12] }));
+
+const PHASES = [
+  { name:"Baseline", start:0, end:15, color:"#2dd4bf", desc:"Normal reef. Agent explores and builds baseline statistics." },
+  { name:"Eutrophication", start:16, end:30, color:"#facc15", desc:"Nutrient runoff → algae → O₂ crash → coral stress." },
+  { name:"Storm", start:31, end:40, color:"#818cf8", desc:"Strong currents threaten sensors. Agent protects equipment." },
+  { name:"Disease", start:41, end:55, color:"#f87171", desc:"Hidden pathogen attacks coral. Agent must abduce the cause." },
+  { name:"Recovery", start:56, end:70, color:"#34d399", desc:"Environment stabilizes. Agent reports findings." },
+];
+
+const OBS_KEYS = [
+  { key:"coral", label:"Coral Health", color:"#f97316", icon:"🪸" },
+  { key:"o2", label:"Dissolved O₂", color:"#38bdf8", icon:"💧" },
+  { key:"fish", label:"Fish Activity", color:"#a78bfa", icon:"🐠" },
+  { key:"algae", label:"Algae", color:"#4ade80", icon:"🌿" },
+  { key:"nutr", label:"Nutrients", color:"#fbbf24", icon:"⚗️" },
+];
+
+const SECONDARY_KEYS = [
+  { key:"power", label:"Power", color:"#f472b6", icon:"🔋" },
+  { key:"sensor", label:"Sensors", color:"#94a3b8", icon:"📡" },
+  { key:"current", label:"Currents", color:"#67e8f9", icon:"🌊" },
+];
+
+const ACTION_ICONS = { "wait":"⏸","observe-water":"🔬","observe-biology":"📷","sample-water":"🧪","activate-aerator":"💨","retract-sensors":"🛡","report-to-base":"📡","request-guidance":"❓" };
+
+const HYPOTHESES = [
+  { id:"curr→turb", type:"ind", correct:true, born:33, death:null },
+  { id:"nutr→coral", type:"ind", correct:true, born:48, death:null },
+  { id:"coral→fish", type:"ind", correct:true, born:51, death:null },
+  { id:"nutr→algae", type:"ind", correct:true, born:52, death:null },
+  { id:"O₂→coral", type:"ind", correct:true, born:57, death:null },
+  { id:"nutr→fish", type:"ind", correct:true, born:30, death:66 },
+  { id:"?→salin", type:"abd", correct:false, born:38, death:null },
+  { id:"?→fish", type:"abd", correct:false, born:40, death:null },
+  { id:"?→turb", type:"abd", correct:false, born:45, death:null },
+  { id:"?→coral", type:"abd", correct:true, born:48, death:null },
+  { id:"?→nutr", type:"abd", correct:false, born:51, death:null },
+  { id:"load→leve", type:"ind", correct:false, born:27, death:64 },
+  { id:"load⊣powe", type:"ind", correct:false, born:27, death:62 },
+  { id:"acti⊣powe", type:"ind", correct:false, born:28, death:65 },
+  { id:"acti⊣load", type:"ind", correct:false, born:30, death:65 },
+  { id:"powe⊣turb", type:"ind", correct:false, born:38, death:68 },
+  { id:"powe⊣stre", type:"ind", correct:false, born:34, death:69 },
+  { id:"stre→load", type:"ind", correct:false, born:29, death:null },
+  { id:"turb→load", type:"ind", correct:false, born:33, death:null }
+];
+
+
+function hypEnergy(h, cycle) {
+  if (cycle < h.born) return null;
+  if (h.death && cycle > h.death) return null;
+  const age = cycle - h.born;
+  if (h.correct) return Math.min(2, 1 + age * (h.type === "ded" ? 0.02 : 0.04));
+  const life = h.death - h.born;
+  return Math.max(0, 1 * (1 - (age / life) * 1.1));
+}
+
+const SHERLOCK = [
+  { title:"Capital Earned", cycle:"27–37", icon:"💰", color:"#34d399",
+    desc:"Inductive links form as precision ratchets up. Successful predictions earn metabolic capital. The agent accumulates the right to philosophize.",
+    detail:"Capital starts at 0.0. Each successful prediction earns 0.02. First abduction requires 0.50. ~25 successful predictions needed." },
+  { title:"First Abduction", cycle:"38", icon:"💡", color:"#fbbf24",
+    desc:"Capital exceeds 0.50 for the first time. Creative abduction fires — hypothesizing a hidden cause for salinity anomalies during the storm.",
+    detail:"Capital spent: 0.50. No gate checked this — the agent simply earned enough through mastering induction first." },
+  { title:"Coral Crisis", cycle:"41–47", icon:"⚠️", color:"#f87171",
+    desc:"Pathogen strikes. Coral drops sharply with no upstream cause active. By cycle 48, capital has re-accumulated and the agent hypothesizes a hidden cause for coral damage.",
+    detail:"?→coral created at c48. Precision=0.08. With near-zero precision on the latent, request-guidance becomes highest info-gain action." },
+  { title:"Emergent Investigation", cycle:"49–55", icon:"🔍", color:"#38bdf8",
+    desc:"The agent switches to request-guidance — not programmed to investigate, but EFE minimization selects it. Low-precision hidden cause dominates the info-gain term.",
+    detail:"No investigation module exists. EFE minimization + low-precision belief = spontaneous investigation. Precision ratchets from 0.08 → 0.65+." },
+  { title:"Developmental Arc", cycle:"0–70", icon:"🧒", color:"#a78bfa",
+    desc:"'Childhood' emerges from boundary conditions. p₀=0.01 → can't be surprised. Capital=0 → can't hypothesize. Both integrate naturally. No gates, no thresholds.",
+    detail:"Precision: 0.01→0.95 (ratchet). Capital: 0→3.0 (earned). First abduction: c38 (earned). 4/5 true links found. Zero scripted behaviors." },
+];
+
+// ============================================================================
+// COMPONENTS
+// ============================================================================
+
+const Bubbles = () => (
+  <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:0,overflow:"hidden"}}>
+    {Array.from({length:10},(_,i)=>(
+      <div key={i} style={{position:"absolute",bottom:"-10px",left:`${8+i*9}%`,width:`${3+i%3*2}px`,height:`${3+i%3*2}px`,borderRadius:"50%",background:"rgba(56,189,248,0.5)",opacity:0.04,animation:`rise ${9+i%4*3}s ${i*1.5}s infinite linear`}}/>
+    ))}
+  </div>
+);
+
+function PhaseBar({cycle,onChange}) {
+  return (
+    <div style={{position:"relative",margin:"0 0 8px"}}>
+      <div style={{display:"flex",height:"26px",borderRadius:"6px",overflow:"hidden",border:"1px solid rgba(255,255,255,0.08)"}}>
+        {PHASES.map(p=>{
+          const w=((p.end-p.start+1)/71)*100;
+          return <div key={p.name} style={{width:`${w}%`,background:p.color+"22",borderRight:"1px solid rgba(255,255,255,0.06)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",fontWeight:700,color:p.color,letterSpacing:".5px",textTransform:"uppercase"}}>{w>10?p.name:p.name.slice(0,3)}</div>;
+        })}
+      </div>
+      <div style={{position:"absolute",top:0,left:`${(cycle/70)*100}%`,width:"2px",height:"26px",background:"#fff",boxShadow:"0 0 8px rgba(255,255,255,0.5)",transition:"left .12s ease",zIndex:2}}/>
+      <input type="range" min={0} max={70} value={cycle} onChange={e=>onChange(+e.target.value)} style={{position:"absolute",top:0,left:0,width:"100%",height:"26px",opacity:0,cursor:"pointer",zIndex:3}}/>
+    </div>
+  );
+}
+
+function Chart({cycle, keys, height=180, showPathogen=true}) {
+  const W=640, H=height, pad={t:10,r:12,b:20,l:38};
+  const pW=W-pad.l-pad.r, pH=H-pad.t-pad.b;
+  const x=c=>pad.l+(c/70)*pW, y=v=>pad.t+pH*(1-v);
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",display:"block"}}>
+      {[0,.25,.5,.75,1].map(v=>(
+        <g key={v}>
+          <line x1={pad.l} y1={y(v)} x2={W-pad.r} y2={y(v)} stroke="rgba(255,255,255,0.06)" strokeWidth={.5}/>
+          <text x={pad.l-4} y={y(v)+3} fill="rgba(255,255,255,0.25)" fontSize="8" textAnchor="end" fontFamily="monospace">{v.toFixed(1)}</text>
+        </g>
+      ))}
+      {PHASES.map(p=><rect key={p.name} x={x(p.start)} y={pad.t} width={((p.end-p.start+1)/71)*pW} height={pH} fill={p.color+"08"}/>)}
+      {showPathogen && <path d={REEF_DATA.filter(d=>d.pathogen>.005).map((d,i)=>`${i===0?"M":"L"} ${x(d.c)} ${y(d.pathogen)}`).join(" ")} fill="none" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 3" opacity={.45}/>}
+      {keys.map(({key,color})=>{
+        const pts=REEF_DATA.filter(d=>d.c<=cycle);
+        if(pts.length<2)return null;
+        const pathD=pts.map((d,i)=>`${i===0?"M":"L"} ${x(d.c)} ${y(d[key])}`).join(" ");
+        const last=pts[pts.length-1];
+        return <g key={key}><path d={pathD} fill="none" stroke={color} strokeWidth={1.5} opacity={.85}/><circle cx={x(last.c)} cy={y(last[key])} r={3} fill={color}/></g>;
+      })}
+      <line x1={x(cycle)} y1={pad.t} x2={x(cycle)} y2={pad.t+pH} stroke="rgba(255,255,255,0.3)" strokeWidth={.5} strokeDasharray="2 2"/>
+      <text x={x(cycle)} y={H-3} fill="rgba(255,255,255,0.4)" fontSize="8" textAnchor="middle" fontFamily="monospace">c{cycle}</text>
+    </svg>
+  );
+}
+
+function Legend({keys, extra}) {
+  return (
+    <div style={{display:"flex",gap:"10px",flexWrap:"wrap",padding:"4px 0"}}>
+      {keys.map(k=>(
+        <div key={k.key} style={{display:"flex",alignItems:"center",gap:"4px",fontSize:"10px",color:"rgba(255,255,255,0.55)"}}>
+          <div style={{width:8,height:3,background:k.color,borderRadius:1}}/>{k.icon} {k.label}
+        </div>
+      ))}
+      {extra}
+    </div>
+  );
+}
+
+function HypNode({h,cycle,sel,onClick}) {
+  const e=hypEnergy(h,cycle);
+  if(e===null) return null;
+  const alive=e>0, b=Math.min(1,e/2);
+  const tc=h.type==="ind"?"#38bdf8":h.type==="ded"?"#a78bfa":"#fbbf24";
+  const bg=h.correct?`rgba(52,211,153,${.08+b*.15})`:`rgba(248,113,113,${.06+(1-b)*.12})`;
+  const bc=alive?(h.correct?`rgba(52,211,153,${.3+b*.4})`:`rgba(248,113,113,${.2+(1-b)*.2})`):"rgba(255,255,255,0.05)";
+  return (
+    <div onClick={onClick} style={{padding:"5px 9px",borderRadius:"7px",border:`1px solid ${bc}`,background:bg,cursor:"pointer",transition:"all .3s",boxShadow:sel?`0 0 10px ${tc}44`:"none",opacity:alive?1:.35,minWidth:"105px",outline:sel?`1px solid ${tc}`:"none"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"2px"}}>
+        <span style={{fontSize:"10.5px",fontWeight:700,color:"rgba(255,255,255,0.9)",fontFamily:"monospace"}}>{h.id}</span>
+        <span style={{fontSize:"7.5px",padding:"1px 4px",borderRadius:"3px",background:tc+"22",color:tc,fontWeight:700,textTransform:"uppercase",letterSpacing:".4px"}}>{h.type}</span>
+      </div>
+      <div style={{height:"3px",background:"rgba(255,255,255,0.06)",borderRadius:"2px",overflow:"hidden",marginTop:"3px"}}>
+        <div style={{height:"100%",borderRadius:"2px",transition:"width .3s",width:`${(e/2)*100}%`,background:h.correct?"linear-gradient(90deg,#059669,#34d399)":"linear-gradient(90deg,#dc2626,#f87171)"}}/>
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:"2px"}}>
+        <span style={{fontSize:"8px",color:"rgba(255,255,255,0.3)"}}>c{h.born}</span>
+        <span style={{fontSize:"8px",color:"rgba(255,255,255,0.45)",fontFamily:"monospace"}}>E={e.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+}
+
+function MetabolicView({cycle}) {
+  const [sel,setSel]=useState(null);
+  const alive=HYPOTHESES.filter(h=>{const e=hypEnergy(h,cycle);return e!==null&&e>0;});
+  const dead=HYPOTHESES.filter(h=>h.death&&cycle>h.death);
+  return (
+    <div>
+      <div style={{display:"flex",gap:"14px",marginBottom:"10px",fontSize:"11px",flexWrap:"wrap",alignItems:"center"}}>
+        <span style={{color:"#34d399"}}>● Correct: {alive.filter(h=>h.correct).length}</span>
+        <span style={{color:"#f87171"}}>● Wrong: {alive.filter(h=>!h.correct).length}</span>
+        <span style={{color:"rgba(255,255,255,0.3)"}}>☠ Dead: {dead.length}</span>
+        <span style={{marginLeft:"auto",fontSize:"9px",color:"rgba(255,255,255,0.3)"}}>
+          {["ind → Induction","ded → Deduction","abd → Abduction"].map((t,i)=>(
+            <span key={i} style={{marginLeft:i?8:0}}><span style={{color:["#38bdf8","#a78bfa","#fbbf24"][i],fontWeight:700}}>{t.split(" → ")[0]}</span> {t.split(" → ")[1]}</span>
+          ))}
+        </span>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:"5px"}}>
+        {HYPOTHESES.map(h=><HypNode key={h.id} h={h} cycle={cycle} sel={sel===h.id} onClick={()=>setSel(sel===h.id?null:h.id)}/>)}
+      </div>
+      <div style={{marginTop:"14px"}}>
+        <div style={{fontSize:"10px",color:"rgba(255,255,255,0.3)",marginBottom:"4px"}}>Energy over time (green = correct, red = wrong)</div>
+        <svg viewBox="0 0 640 100" style={{width:"100%",display:"block"}}>
+          {HYPOTHESES.map(h=>{
+            const pts=[];
+            for(let c=h.born;c<=(h.death||70);c++){const e=hypEnergy(h,c);if(e!==null)pts.push({x:10+(c/70)*620,y:95-e/2*85});}
+            if(pts.length<2) return null;
+            return <path key={h.id} d={pts.map((p,i)=>`${i===0?"M":"L"} ${p.x} ${p.y}`).join(" ")} fill="none" stroke={h.correct?"#34d399":"#f87171"} strokeWidth={sel===h.id?2:1} opacity={sel===h.id?1:(sel?0.15:h.correct?.6:.35)} strokeDasharray={h.correct?"":"3 2"}/>;
+          })}
+          <line x1={10+(cycle/70)*620} y1={5} x2={10+(cycle/70)*620} y2={95} stroke="rgba(255,255,255,0.2)" strokeWidth={.5} strokeDasharray="2 2"/>
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+function SherlockView({step,onStep}) {
+  return (
+    <div>
+      <div style={{display:"flex",gap:"3px",marginBottom:"14px"}}>
+        {SHERLOCK.map((s,i)=>(
+          <button key={i} onClick={()=>onStep(i)} style={{flex:1,padding:"7px 3px",borderRadius:"6px",border:"none",background:step===i?s.color+"22":"rgba(255,255,255,0.03)",color:step===i?s.color:"rgba(255,255,255,0.3)",cursor:"pointer",fontSize:"18px",transition:"all .2s",outline:step===i?`1px solid ${s.color}44`:"none"}}>{s.icon}</button>
+        ))}
+      </div>
+      {SHERLOCK.map((s,i)=>step===i&&(
+        <div key={i} style={{padding:"14px 18px",borderRadius:"10px",background:s.color+"0a",border:`1px solid ${s.color}22`}}>
+          <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"8px"}}>
+            <span style={{fontSize:"26px"}}>{s.icon}</span>
+            <div>
+              <div style={{fontSize:"14px",fontWeight:700,color:s.color}}>{s.title}</div>
+              <div style={{fontSize:"9px",color:"rgba(255,255,255,0.3)",fontFamily:"monospace"}}>Cycle {s.cycle}</div>
+            </div>
+          </div>
+          <p style={{fontSize:"12.5px",lineHeight:1.6,color:"rgba(255,255,255,0.8)",margin:"0 0 8px"}}>{s.desc}</p>
+          <div style={{fontSize:"10.5px",lineHeight:1.5,color:"rgba(255,255,255,0.4)",padding:"8px 10px",background:"rgba(0,0,0,0.2)",borderRadius:"6px",fontFamily:"monospace",borderLeft:`2px solid ${s.color}33`}}>{s.detail}</div>
+          {i===3&&<div style={{marginTop:"10px",padding:"8px 12px",borderRadius:"7px",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",fontSize:"11px",color:"#fbbf24",fontWeight:600,textAlign:"center"}}>⚡ No investigation module was programmed. This behavior is emergent.</div>}
+        </div>
+      ))}
+      <div style={{marginTop:"14px",display:"flex",alignItems:"center",justifyContent:"center",gap:0,flexWrap:"wrap"}}>
+        {["p₀≈0 + $₀=0","→","Earn Capital","→","Abduction","→","Low Precision","→","EFE Investigation"].map((t,i)=>
+          t==="→"?<span key={i} style={{color:"rgba(255,255,255,0.15)",fontSize:"13px",margin:"0 2px"}}>→</span>:
+          <span key={i} style={{fontSize:"8.5px",padding:"3px 7px",borderRadius:"4px",background:i<=2?"#34d39911":i<=4?"#fbbf2411":i<=6?"#38bdf811":"#a78bfa11",color:i<=2?"#34d399":i<=4?"#fbbf24":i<=6?"#38bdf8":"#a78bfa",fontWeight:600,border:`1px solid ${i<=2?"#fbbf2422":i<=6?"#38bdf822":"#34d39922"}`}}>{t}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SensitivityView() {
+  const [mode,setMode]=useState("health");
+  const [hover,setHover]=useState(null);
+  const rents=SENS.rn, rewards=SENS.rw;
+  const lookup={};
+  SENS.d.forEach(d=>{lookup[`${d[0]}_${d[1]}`]=d;});
+  const cellW=48, cellH=32, padL=58, padT=28, padB=30, padR=12;
+  const W=padL+rewards.length*cellW+padR, H=padT+rents.length*cellH+padB;
+
+  function cellColor(d) {
+    if(mode==="health") return d[7]?"#34d399":"#f87171";
+    if(mode==="energy") {
+      const e=d[6]; if(e<=0) return "#1e1e2e";
+      return `rgba(52,211,153,${Math.min(1,e/2)})`;
+    }
+    if(mode==="death") {
+      if(!d[4]) return "#f87171";
+      const c=d[5]; return `rgba(56,189,248,${Math.min(1,Math.max(.15,(60-c)/50))})`;
+    }
+    if(mode==="ratio") {
+      const r=d[2]; if(r<1) return `rgba(248,113,113,${.3+Math.min(.7,(1-r))})`;
+      if(r<2) return `rgba(251,191,36,${.3+(r-1)*.5})`;
+      return `rgba(52,211,153,${Math.min(1,.3+Math.min(.7,(r-1)/5))})`;
+    }
+    return "#333";
+  }
+
+  function cellLabel(d) {
+    if(mode==="health") return d[7]?"✓":"✗";
+    if(mode==="energy") return d[6].toFixed(1);
+    if(mode==="death") return d[4]?`${d[5]}`:"—";
+    if(mode==="ratio") return d[2].toFixed(1);
+    return "";
+  }
+
+  const nHealthy=SENS.d.filter(d=>d[7]).length;
+  const hovered=hover?lookup[hover]:null;
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:"3px",marginBottom:"12px"}}>
+        {[["health","System Health"],["energy","Correct Energy"],["death","Wrong Death Cycle"],["ratio","Reward/Rent Ratio"]].map(([id,label])=>(
+          <button key={id} onClick={()=>setMode(id)} style={{flex:1,padding:"6px 4px",borderRadius:"5px",border:"none",background:mode===id?"rgba(255,255,255,0.08)":"transparent",color:mode===id?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.35)",cursor:"pointer",fontSize:"10px",fontWeight:600,transition:"all .2s"}}>{label}</button>
+        ))}
+      </div>
+
+      <div style={{overflowX:"auto"}}>
+        <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",minWidth:"500px",display:"block"}}>
+          <text x={padL+rewards.length*cellW/2} y={14} fill="rgba(255,255,255,0.4)" fontSize="9" textAnchor="middle" fontWeight="600">c_reward →</text>
+          <text x={12} y={padT+rents.length*cellH/2} fill="rgba(255,255,255,0.4)" fontSize="9" textAnchor="middle" fontWeight="600" transform={`rotate(-90,12,${padT+rents.length*cellH/2})`}>c_rent →</text>
+          {rewards.map((rw,j)=>(
+            <text key={j} x={padL+j*cellW+cellW/2} y={padT-6} fill="rgba(255,255,255,0.3)" fontSize="8" textAnchor="middle" fontFamily="monospace">{rw}</text>
+          ))}
+          {rents.map((rn,i)=>(
+            <text key={i} x={padL-6} y={padT+i*cellH+cellH/2+3} fill="rgba(255,255,255,0.3)" fontSize="8" textAnchor="end" fontFamily="monospace">{rn}</text>
+          ))}
+          {rents.map((rn,i)=>rewards.map((rw,j)=>{
+            const d=lookup[`${rn}_${rw}`];
+            if(!d)return null;
+            const key=`${rn}_${rw}`;
+            const isH=key===hover;
+            return (
+              <g key={key} onMouseEnter={()=>setHover(key)} onMouseLeave={()=>setHover(null)} style={{cursor:"pointer"}}>
+                <rect x={padL+j*cellW+1} y={padT+i*cellH+1} width={cellW-2} height={cellH-2} rx={4} fill={cellColor(d)} opacity={isH?.95:.7} stroke={isH?"#fff":"none"} strokeWidth={isH?1.5:0}/>
+                <text x={padL+j*cellW+cellW/2} y={padT+i*cellH+cellH/2+3.5} fill={d[7]||mode!=="health"?"rgba(255,255,255,0.8)":"rgba(255,255,255,0.5)"} fontSize="9" textAnchor="middle" fontFamily="monospace" fontWeight="600">{cellLabel(d)}</text>
+              </g>
+            );
+          }))}
+          {mode==="health"&&rents.map((rn,i)=>rewards.map((rw,j)=>{
+            const ratio=rw/rn;
+            if(Math.abs(ratio-1)<.15) return <circle key={`dot_${i}_${j}`} cx={padL+j*cellW+cellW/2} cy={padT+i*cellH+cellH-5} r={2} fill="rgba(255,255,255,0.2)"/>;
+            return null;
+          }))}
+        </svg>
+      </div>
+
+      <div style={{display:"flex",gap:"10px",marginTop:"10px",flexWrap:"wrap"}}>
+        <div style={{flex:"1 1 200px",padding:"10px 14px",borderRadius:"8px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}>
+          <div style={{fontSize:"20px",fontWeight:800,color:"#34d399",fontFamily:"monospace"}}>{nHealthy}/{SENS.d.length}</div>
+          <div style={{fontSize:"9px",color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:".5px"}}>Healthy configs (67%)</div>
+          <div style={{fontSize:"10px",color:"rgba(255,255,255,0.4)",marginTop:"4px",lineHeight:1.4}}>
+            Governed by one dimensionless ratio: c_reward / c_rent. Sharp transition at ≈1.0. The dominant failure mode is starvation — the safer direction.
+          </div>
+        </div>
+        {hovered&&(
+          <div style={{flex:"1 1 200px",padding:"10px 14px",borderRadius:"8px",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",animation:"fadeIn .2s ease"}}>
+            <div style={{fontSize:"10px",fontFamily:"monospace",color:"rgba(255,255,255,0.5)",marginBottom:"4px"}}>
+              rent={hovered[0]}  reward={hovered[1]}  ratio={hovered[2]}
+            </div>
+            <div style={{fontSize:"12px",fontWeight:700,color:hovered[7]?"#34d399":"#f87171",marginBottom:"4px"}}>
+              {hovered[7]?"✓ HEALTHY":"✗ UNHEALTHY"}
+            </div>
+            <div style={{fontSize:"10px",color:"rgba(255,255,255,0.4)",lineHeight:1.5}}>
+              Links alive: {hovered[3]}/{hovered[9]} · 
+              Wrong died: {hovered[4]?"yes, c"+hovered[5]:"no"} · 
+              Correct energy: {hovered[6]}
+              {hovered[8]&1?" · ⚠ Induction fail":""}
+              {hovered[8]&2?" · ⚠ Retention fail":""}
+              {hovered[8]&4?" · ⚠ Death fail":""}
+              {hovered[8]&8?" · ⚠ Survival fail":""}
+            </div>
+          </div>
+        )}
+        {!hovered&&(
+          <div style={{flex:"1 1 200px",padding:"10px 14px",borderRadius:"8px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)"}}>
+            <div style={{fontSize:"10px",color:"rgba(255,255,255,0.3)",lineHeight:1.5}}>
+              Hover over cells for details. The diagonal dots mark ratio ≈ 1.0 — the boundary between healthy and unhealthy regimes. Below this line: correct hypotheses starve. Above: wrong hypotheses die as they should.
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function PhysicsView({cycle}) {
+  const W=640, H=140, pad={t:10,r:12,b:22,l:42};
+  const pW=W-pad.l-pad.r, pH=H-pad.t-pad.b;
+  const x=c=>pad.l+(c/70)*pW;
+
+  // Precision chart
+  const yP=v=>pad.t+pH*(1-v);
+  const precPts=BF_PRECISION.slice(0,cycle+1).map((p,c)=>`${c===0?"M":"L"} ${x(c)} ${yP(p)}`).join(" ");
+
+  // Capital chart
+  const capMax=3.2;
+  const yC=v=>pad.t+pH*(1-v/capMax);
+  const capPts=BF_CAPITAL.slice(0,cycle+1).map((c2,c)=>`${c===0?"M":"L"} ${x(c)} ${yC(c2)}`).join(" ");
+
+  // Abduction cost line
+  const abdY=yC(0.5);
+
+  // Creative abduction events
+  const ABD_CYCLES=[38,40,45,48,51,58,63];
+
+  return (
+    <div>
+      <div style={{fontSize:"11px",fontWeight:700,color:"rgba(255,255,255,0.6)",marginBottom:"4px"}}>Average Belief Precision (observation-driven ratchet)</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",display:"block"}}>
+        {[0,.25,.5,.75,1].map(v=>(
+          <g key={v}>
+            <line x1={pad.l} y1={yP(v)} x2={W-pad.r} y2={yP(v)} stroke="rgba(255,255,255,0.06)" strokeWidth={.5}/>
+            <text x={pad.l-4} y={yP(v)+3} fill="rgba(255,255,255,0.25)" fontSize="8" textAnchor="end" fontFamily="monospace">{v.toFixed(2)}</text>
+          </g>
+        ))}
+        {PHASES.map(p=><rect key={p.name} x={x(p.start)} y={pad.t} width={((p.end-p.start+1)/71)*pW} height={pH} fill={p.color+"08"}/>)}
+        <line x1={pad.l} y1={yP(0.5)} x2={W-pad.r} y2={yP(0.5)} stroke="rgba(248,113,113,0.3)" strokeWidth={1} strokeDasharray="4 3"/>
+        <text x={W-pad.r+2} y={yP(0.5)+3} fill="rgba(248,113,113,0.4)" fontSize="7" fontFamily="monospace">old p₀</text>
+        {precPts.length>5&&<path d={precPts} fill="none" stroke="#a78bfa" strokeWidth={2} opacity={.85}/>}
+        {cycle>=0&&<circle cx={x(cycle)} cy={yP(BF_PRECISION[cycle])} r={3} fill="#a78bfa"/>}
+        <line x1={x(cycle)} y1={pad.t} x2={x(cycle)} y2={pad.t+pH} stroke="rgba(255,255,255,0.2)" strokeWidth={.5} strokeDasharray="2 2"/>
+        <text x={x(cycle)} y={H-3} fill="rgba(255,255,255,0.4)" fontSize="8" textAnchor="middle" fontFamily="monospace">c{cycle}</text>
+      </svg>
+      <div style={{display:"flex",gap:"12px",padding:"2px 0 10px",fontSize:"9px",color:"rgba(255,255,255,0.35)"}}>
+        <span><span style={{color:"#a78bfa"}}>━━</span> Avg precision (ratchet: +0.03/obs)</span>
+        <span><span style={{color:"rgba(248,113,113,0.5)"}}>╌╌</span> Old default p₀=0.50</span>
+      </div>
+
+      <div style={{fontSize:"11px",fontWeight:700,color:"rgba(255,255,255,0.6)",marginBottom:"4px"}}>Metabolic Capital (earned from predictions, spent on abduction)</div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",display:"block"}}>
+        {[0,0.5,1,1.5,2,2.5,3].map(v=>(
+          <g key={v}>
+            <line x1={pad.l} y1={yC(v)} x2={W-pad.r} y2={yC(v)} stroke="rgba(255,255,255,0.06)" strokeWidth={.5}/>
+            <text x={pad.l-4} y={yC(v)+3} fill="rgba(255,255,255,0.25)" fontSize="8" textAnchor="end" fontFamily="monospace">{v.toFixed(1)}</text>
+          </g>
+        ))}
+        {PHASES.map(p=><rect key={p.name} x={x(p.start)} y={pad.t} width={((p.end-p.start+1)/71)*pW} height={pH} fill={p.color+"08"}/>)}
+        <line x1={pad.l} y1={abdY} x2={W-pad.r} y2={abdY} stroke="rgba(251,191,36,0.4)" strokeWidth={1} strokeDasharray="4 3"/>
+        <text x={W-pad.r+2} y={abdY+3} fill="rgba(251,191,36,0.4)" fontSize="7" fontFamily="monospace">abd cost</text>
+        {capPts.length>5&&<path d={capPts} fill="none" stroke="#34d399" strokeWidth={2} opacity={.85}/>}
+        {cycle>=0&&<circle cx={x(cycle)} cy={yC(BF_CAPITAL[cycle])} r={3} fill="#34d399"/>}
+        {ABD_CYCLES.filter(c=>c<=cycle).map(c=>(
+          <g key={c}>
+            <line x1={x(c)} y1={pad.t} x2={x(c)} y2={pad.t+pH} stroke="rgba(251,191,36,0.3)" strokeWidth={1}/>
+            <text x={x(c)} y={pad.t-2} fill="#fbbf24" fontSize="7" textAnchor="middle" fontFamily="monospace">abd</text>
+          </g>
+        ))}
+        <line x1={x(cycle)} y1={pad.t} x2={x(cycle)} y2={pad.t+pH} stroke="rgba(255,255,255,0.2)" strokeWidth={.5} strokeDasharray="2 2"/>
+        <text x={x(cycle)} y={H-3} fill="rgba(255,255,255,0.4)" fontSize="8" textAnchor="middle" fontFamily="monospace">c{cycle}</text>
+      </svg>
+      <div style={{display:"flex",gap:"12px",padding:"2px 0 10px",fontSize:"9px",color:"rgba(255,255,255,0.35)"}}>
+        <span><span style={{color:"#34d399"}}>━━</span> Metabolic capital</span>
+        <span><span style={{color:"rgba(251,191,36,0.5)"}}>╌╌</span> Abduction cost (0.50)</span>
+        <span><span style={{color:"#fbbf24"}}>abd</span> Creative abduction event</span>
+      </div>
+
+      <div style={{padding:"10px 14px",borderRadius:"8px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}>
+        <div style={{fontSize:"11px",fontWeight:700,color:"rgba(255,255,255,0.6)",marginBottom:"6px"}}>Boundary Condition Fix — The Physics</div>
+        <div style={{fontSize:"10px",color:"rgba(255,255,255,0.4)",lineHeight:1.6}}>
+          <b style={{color:"rgba(255,255,255,0.7)"}}>Surprise = ½ · p · e²</b> — With p₀=0.01, even max error yields S=0.005. The Hebbian accumulator and abduction generator physically cannot fire.<br/>
+          <b style={{color:"rgba(255,255,255,0.7)"}}>Precision ratchet</b> — +0.03 per observation, independent of accuracy. Reflects "how much data" not "how well I predicted."<br/>
+          <b style={{color:"rgba(255,255,255,0.7)"}}>Capital = 0</b> — Must earn the right to hypothesize. Each correct prediction deposits 0.02. Abduction costs 0.50. Natural sequencing: induction before abduction.<br/>
+          <b style={{color:"rgba(255,255,255,0.7)"}}>Result</b> — "Childhood" (cycles 0–37) emerges from initial conditions, not from gates or thresholds. Zero new mechanisms added.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBar({cycle}) {
+  const d=REEF_DATA[cycle]||REEF_DATA[0];
+  const phase=PHASES.find(p=>cycle>=p.start&&cycle<=p.end);
+  return (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 12px",background:"rgba(255,255,255,0.02)",borderRadius:"7px",border:"1px solid rgba(255,255,255,0.05)",marginBottom:"8px",flexWrap:"wrap",gap:"6px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+        <span style={{fontFamily:"monospace",fontSize:"17px",fontWeight:800,color:"rgba(255,255,255,0.9)"}}>c{String(cycle).padStart(2,"0")}</span>
+        <span style={{fontSize:"9px",padding:"2px 7px",borderRadius:"4px",background:phase?.color+"18",color:phase?.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>{phase?.name}</span>
+      </div>
+      <div style={{fontSize:"11px",color:"rgba(255,255,255,0.5)",flex:"1 1 200px",textAlign:"center"}}>{phase?.desc}</div>
+      <div style={{display:"flex",alignItems:"center",gap:"5px"}}>
+        <span style={{fontSize:"15px"}}>{ACTION_ICONS[d.action]}</span>
+        <span style={{fontSize:"10px",color:"rgba(255,255,255,0.6)",fontFamily:"monospace"}}>{d.action}</span>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// MAIN
+// ============================================================================
+
+function App() {
+  const [cycle,setCycle]=useState(0);
+  const [playing,setPlaying]=useState(false);
+  const [shStep,setShStep]=useState(0);
+  const [tab,setTab]=useState("timeline");
+  const ref=useRef(null);
+
+  useEffect(()=>{
+    if(playing){ref.current=setInterval(()=>setCycle(p=>{if(p>=70){setPlaying(false);return 70;}return p+1;}),180);}
+    return()=>clearInterval(ref.current);
+  },[playing]);
+
+  const toggle=useCallback(()=>{if(cycle>=70)setCycle(0);setPlaying(p=>!p);},[cycle]);
+
+  const alive=HYPOTHESES.filter(h=>{const e=hypEnergy(h,cycle);return e!==null&&e>0;});
+  const dead=HYPOTHESES.filter(h=>h.death&&cycle>h.death);
+  const trueLinks=HYPOTHESES.filter(h=>h.correct&&hypEnergy(h,cycle)!==null);
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg,#020617 0%,#0c1929 40%,#0a1628 100%)",color:"white",fontFamily:"'DM Sans','Segoe UI',system-ui,sans-serif",position:"relative",overflow:"hidden"}}>
+      <Bubbles/>
+      <div style={{position:"relative",zIndex:1,maxWidth:"820px",margin:"0 auto",padding:"20px 16px"}}>
+        {/* Header */}
+        <div style={{textAlign:"center",marginBottom:"20px"}}>
+          <div style={{fontSize:"8px",letterSpacing:"3px",textTransform:"uppercase",color:"rgba(255,255,255,0.2)",marginBottom:"5px"}}>Project Dagaz · Active Inference Cognitive Architecture</div>
+          <h1 style={{fontSize:"22px",fontWeight:800,margin:"0 0 3px",background:"linear-gradient(135deg,#38bdf8,#34d399,#a78bfa)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",letterSpacing:"-.5px"}}>Coral Reef Monitoring Scenario</h1>
+          <p style={{fontSize:"11px",color:"rgba(255,255,255,0.35)",margin:0}}>14 observables · 8 actions · 4 hidden causal chains · 70 cycles · BF engine: p₀=0.01, metabolic capital</p>
+        </div>
+
+        {/* Controls */}
+        <div style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"5px"}}>
+          <button onClick={toggle} style={{width:"32px",height:"32px",borderRadius:"50%",border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.05)",color:"white",fontSize:"13px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>{playing?"⏸":"▶"}</button>
+          <div style={{flex:1}}><PhaseBar cycle={cycle} onChange={setCycle}/></div>
+          <button onClick={()=>{setCycle(0);setPlaying(false);}} style={{padding:"4px 9px",borderRadius:"5px",border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"rgba(255,255,255,0.4)",fontSize:"9px",cursor:"pointer"}}>Reset</button>
+        </div>
+
+        <StatusBar cycle={cycle}/>
+
+        {/* Tabs */}
+        <div style={{display:"flex",gap:"2px",marginBottom:"12px"}}>
+          {[
+            {id:"timeline",label:"🌊 Ecosystem",desc:"Observable trajectories"},
+            {id:"metabolic",label:"⚡ Metabolism",desc:"Hypothesis selection"},
+            {id:"sherlock",label:"🔍 Sherlock",desc:"Emergent investigation"},
+            {id:"sensitivity",label:"📐 Sensitivity",desc:"110-parameter sweep"},
+            {id:"physics",label:"⚛️ Physics",desc:"BF: precision + capital"},
+          ].map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"8px 6px",borderRadius:"7px",border:"none",background:tab===t.id?"rgba(255,255,255,0.06)":"transparent",color:tab===t.id?"rgba(255,255,255,0.9)":"rgba(255,255,255,0.3)",cursor:"pointer",textAlign:"center",transition:"all .2s",outline:tab===t.id?"1px solid rgba(255,255,255,0.08)":"none"}}>
+              <div style={{fontSize:"12px",fontWeight:600}}>{t.label}</div>
+              <div style={{fontSize:"8px",marginTop:"1px",opacity:.5}}>{t.desc}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div style={{padding:"14px",borderRadius:"11px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)"}}>
+          {tab==="timeline"&&(
+            <div>
+              <Chart cycle={cycle} keys={OBS_KEYS}/>
+              <Legend keys={OBS_KEYS} extra={<div style={{display:"flex",alignItems:"center",gap:"4px",fontSize:"10px",color:"rgba(255,255,255,0.35)"}}><div style={{width:8,height:0,borderTop:"1.5px dashed #ef4444"}}/>🦠 Pathogen (hidden)</div>}/>
+              <div style={{marginTop:"8px"}}><Chart cycle={cycle} keys={SECONDARY_KEYS} height={110} showPathogen={false}/></div>
+              <Legend keys={SECONDARY_KEYS}/>
+              <div style={{marginTop:"10px",display:"flex",gap:"5px",flexWrap:"wrap"}}>
+                {[{c:16,l:"Nutrients ↑",cl:"#facc15"},{c:22,l:"Algae blooms",cl:"#4ade80"},{c:26,l:"O₂ crashes",cl:"#38bdf8"},{c:31,l:"Storm hits",cl:"#818cf8"},{c:41,l:"Pathogen!",cl:"#f87171"},{c:38,l:"1st Abduction",cl:"#fbbf24"},{c:48,l:"?→coral",cl:"#f87171"},{c:56,l:"Recovery",cl:"#34d399"}].map(e=>(
+                  <span key={e.c} onClick={()=>setCycle(e.c)} style={{fontSize:"8.5px",padding:"2px 7px",borderRadius:"4px",cursor:"pointer",background:cycle>=e.c?e.cl+"15":"rgba(255,255,255,0.02)",color:cycle>=e.c?e.cl:"rgba(255,255,255,0.12)",border:`1px solid ${cycle>=e.c?e.cl+"30":"rgba(255,255,255,0.04)"}`,fontWeight:600,transition:"all .3s"}}>c{e.c}: {e.l}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {tab==="metabolic"&&<MetabolicView cycle={cycle}/>}
+          {tab==="sherlock"&&<SherlockView step={shStep} onStep={setShStep}/>}
+          {tab==="sensitivity"&&<SensitivityView/>}
+          {tab==="physics"&&<PhysicsView cycle={cycle}/>}
+        </div>
+
+        {/* Stats footer */}
+        <div style={{marginTop:"12px",display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"7px"}}>
+          {[
+            {label:"Alive Hypotheses",value:alive.length},
+            {label:"Metabolic Deaths",value:dead.length},
+            {label:"True Links Found",value:trueLinks.length},
+            {label:"Capital",value:BF_CAPITAL[cycle]?.toFixed(2)||"0.00",text:true},
+            {label:"Avg Precision",value:BF_PRECISION[cycle]?.toFixed(2)||"0.01",text:true},
+            {label:"Pathogen",value:cycle>=48?"ABDUCED":cycle>=41?"???":"—",text:true},
+          ].map((s,i)=>(
+            <div key={i} style={{padding:"8px 10px",borderRadius:"7px",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",textAlign:"center"}}>
+              <div style={{fontSize:"18px",fontWeight:800,color:"rgba(255,255,255,0.85)",fontFamily:"monospace"}}>{s.text?s.value:s.value}</div>
+              <div style={{fontSize:"8px",color:"rgba(255,255,255,0.28)",textTransform:"uppercase",letterSpacing:".4px",marginTop:"1px"}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Contextual insight */}
+        {cycle>=48&&cycle<=55&&(
+          <div style={{marginTop:"12px",padding:"10px 14px",borderRadius:"9px",background:"rgba(251,191,36,0.04)",border:"1px solid rgba(251,191,36,0.12)",animation:"fadeIn .5s ease"}}>
+            <div style={{fontSize:"11px",fontWeight:700,color:"#fbbf24",marginBottom:"3px"}}>🔍 Sherlock Holmes Effect Active</div>
+            <div style={{fontSize:"10px",color:"rgba(255,255,255,0.45)",lineHeight:1.5}}>
+              Hidden pathogen abduced at c48 (after earning metabolic capital). Low confidence → request-guidance = highest info-gain action. Investigation emerges from EFE minimization — no investigation module exists.
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>

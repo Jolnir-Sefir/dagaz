@@ -1,0 +1,394 @@
+; =============================================================================
+; SCENARIO: Autonomous Coral Reef Monitoring Station
+; =============================================================================
+;
+; An underwater sensor platform monitors a coral reef ecosystem it does
+; not initially understand. It manages its own power and instruments while
+; discovering causal structure in the environment through prediction errors.
+;
+; WHAT THIS SCENARIO EXERCISES:
+;   - EFE action selection across 8 actions and 14 observables
+;   - Induction: discovers nutrient→algae→oxygen→coral chain
+;   - Deduction: extends chain to nutrient→coral (lag 3)
+;   - Abduction: hypothesizes hidden pathogen from coral damage + fish flight
+;   - Sherlock Holmes: spontaneous water sampling to confirm pathogen
+;   - Viability: power depletion, sensor degradation, storm threat
+;   - Conversation: reports to marine biologist, requests concept labels
+;   - Metabolic selection: wrong causal hypotheses die, correct ones persist
+;
+; DESIGN NOTE:
+;   The system starts with beliefs and action models but NO passive models.
+;   All causal structure must be discovered through experience. The hidden
+;   causal chain (nutrients → algae → oxygen → coral → fish) is embedded
+;   in the environment simulator, not in the agent's initial knowledge.
+;
+; =============================================================================
+
+
+; =============================================================================
+; SECTION I: OBSERVABLES — What the station can sense
+; =============================================================================
+;
+; 14 observables across 3 domains:
+;   Environment (8): the reef ecosystem
+;   Platform (4):    the station's own systems
+;   Social (2):      communication with surface
+
+; --- Environment: Water Chemistry ---
+; Range [0,1] where 0.5 = nominal for most, contextual for others
+(: water-temperature Observable)    ; 0=cold, 1=hot. Pref ~0.45 (reef-safe)
+(: water-ph Observable)             ; 0=acidic, 1=alkaline. Pref ~0.55 (slightly alkaline)
+(: dissolved-oxygen Observable)     ; 0=anoxic, 1=saturated. Pref ~0.75 (high O2)
+(: turbidity Observable)            ; 0=clear, 1=opaque. Pref ~0.15 (clear)
+(: salinity Observable)             ; 0=fresh, 1=hypersaline. Pref ~0.55 (oceanic)
+(: nutrient-load Observable)        ; 0=oligotrophic, 1=eutrophic. Pref ~0.20 (low)
+
+; --- Environment: Biology ---
+(: coral-health Observable)         ; 0=dead, 1=thriving. Pref ~0.85
+(: fish-activity Observable)        ; 0=absent, 1=abundant. Pref ~0.70
+(: algae-coverage Observable)       ; 0=none, 1=smothering. Pref ~0.15 (low)
+
+; --- Environment: Physical ---
+(: current-strength Observable)     ; 0=still, 1=violent. Pref ~0.35 (moderate)
+(: light-level Observable)          ; 0=dark, 1=bright. Pref ~0.65 (photosynthetic)
+
+; --- Platform: Station Systems ---
+(: equipment-power Observable)      ; 0=dead, 1=full. Pref ~0.80 (well-charged)
+(: sensor-integrity Observable)     ; 0=failed, 1=calibrated. Pref ~0.90
+(: comm-quality Observable)         ; 0=no signal, 1=perfect. Pref ~0.70
+
+; --- Hidden (not directly observable — must be abduced) ---
+; These exist in the environment but not in the agent's initial beliefs.
+; The agent discovers them through abduction when their effects are observed.
+;
+; (: bacterial-pathogen Observable) ; 0=absent, 1=epidemic
+; (: nutrient-runoff Observable)    ; 0=none, 1=heavy
+
+
+; =============================================================================
+; SECTION II: INITIAL BELIEFS — What the station thinks it knows
+; =============================================================================
+;
+; Schema: (belief <observable> <value> <precision>)
+; Value = current estimate. Precision = confidence (inverse variance).
+;
+; BOUNDARY CONDITION FIX (v6):
+; All beliefs start at near-zero precision (0.01). The agent knows nothing
+; at boot-up. Precision ratchets upward from observation exposure.
+; Previous values (0.2-0.7) caused premature surprise during calibration.
+
+; Environment — near-zero precision (haven't observed anything)
+(belief water-temperature 0.45 0.01)
+(belief water-ph 0.55 0.01)
+(belief dissolved-oxygen 0.70 0.01)
+(belief turbidity 0.20 0.01)
+(belief salinity 0.55 0.01)
+(belief nutrient-load 0.25 0.01)
+
+; Biology — near-zero precision
+(belief coral-health 0.80 0.01)
+(belief fish-activity 0.65 0.01)
+(belief algae-coverage 0.15 0.01)
+
+; Physical — near-zero precision
+(belief current-strength 0.30 0.01)
+(belief light-level 0.60 0.01)
+
+; Platform — near-zero precision (will ratchet up quickly from diagnostics)
+(belief equipment-power 0.85 0.01)
+(belief sensor-integrity 0.90 0.01)
+(belief comm-quality 0.70 0.01)
+
+
+; =============================================================================
+; SECTION III: PREFERENCES — What the station wants the world to look like
+; =============================================================================
+;
+; Schema: (preference <observable> <preferred-value> <importance>)
+;
+; Importance weights determine how much each observable contributes to the
+; pragmatic (error) term in EFE. Platform observables are high-importance
+; (viability). Ecosystem observables reflect the monitoring mission.
+
+; Environment — mission objectives
+(preference water-temperature 0.45 0.6)
+(preference water-ph 0.55 0.5)
+(preference dissolved-oxygen 0.75 0.8)       ; Critical for reef health
+(preference turbidity 0.15 0.5)
+(preference salinity 0.55 0.3)
+(preference nutrient-load 0.20 0.7)          ; High nutrients are bad
+
+; Biology — core mission
+(preference coral-health 0.85 0.9)           ; Highest mission priority
+(preference fish-activity 0.70 0.6)
+(preference algae-coverage 0.15 0.7)         ; Algae bloom is a threat
+
+; Physical
+(preference current-strength 0.35 0.4)
+(preference light-level 0.65 0.5)
+
+; Platform — viability (high importance)
+(preference equipment-power 0.80 1.0)        ; CRITICAL: die without power
+(preference sensor-integrity 0.90 0.8)
+(preference comm-quality 0.70 0.7)
+
+
+; =============================================================================
+; SECTION IV: VIABILITY BOUNDARIES — Existential limits
+; =============================================================================
+;
+; Schema: (viability-bound <observable> <lower> <upper>)
+;
+; When an observable crosses these boundaries, the viability penalty in EFE
+; spikes, driving protective action. These are not preferences — they are
+; survival constraints.
+
+(viability-bound equipment-power 0.15 1.0)   ; Below 15% = critical
+(viability-bound sensor-integrity 0.20 1.0)  ; Below 20% = blind
+(viability-bound comm-quality 0.10 1.0)      ; Below 10% = isolated
+(viability-bound dissolved-oxygen 0.15 1.0)  ; Anoxic event = reef death
+(viability-bound coral-health 0.10 1.0)      ; Below 10% = mission failure
+
+
+; =============================================================================
+; SECTION V: ACTIONS — What the station can do
+; =============================================================================
+;
+; 8 actions spanning monitoring, intervention, self-maintenance, and
+; communication. All compete in the same EFE landscape.
+
+(: Action Type)
+(: wait Action)                 ; Do nothing, conserve power
+(: observe-water Action)        ; Sample water chemistry (temp, pH, O2, turbidity)
+(: observe-biology Action)      ; Survey coral, fish, algae (camera + sonar)
+(: sample-water Action)         ; Deep chemical analysis (nutrients, pathogens)
+(: activate-aerator Action)     ; Inject oxygen into local water column
+(: retract-sensors Action)      ; Protect instruments from storm/current
+(: report-to-base Action)       ; Send data summary to surface biologist
+(: request-guidance Action)     ; Ask surface biologist for interpretation
+
+
+; =============================================================================
+; SECTION VI: ACTION COSTS — Metabolic price of each action
+; =============================================================================
+;
+; Schema: (action-cost <action> <cost>)
+; Cost represents power drain and wear. Higher cost = more reluctant unless
+; EFE demands it.
+
+(action-cost wait 0.005)                ; Near-zero: just existing
+(action-cost observe-water 0.02)        ; Routine sensor read
+(action-cost observe-biology 0.03)      ; Camera + sonar sweep
+(action-cost sample-water 0.06)         ; Expensive: chemical assay
+(action-cost activate-aerator 0.08)     ; Very expensive: pumps running
+(action-cost retract-sensors 0.04)      ; Mechanical movement
+(action-cost report-to-base 0.03)       ; Radio transmission
+(action-cost request-guidance 0.04)     ; Radio + wait for response
+
+
+; =============================================================================
+; SECTION VII: ACTION MODELS — Expected effects on beliefs
+; =============================================================================
+;
+; Schema: (action-model <action> <observable> <delta-mean> <delta-precision>)
+;
+; delta-mean:      Expected change to the belief's value after this action
+; delta-precision:  Expected change to belief's precision (information gain)
+;
+; DESIGN NOTE: These are the agent's MODELS of what actions do, not ground
+; truth. They are updated by action_learning.metta after each cycle based
+; on observed outcomes. Initial values are conservative priors.
+
+; --- wait: minimal info gain, slight power drain ---
+(action-model wait water-temperature 0.0 -0.01)
+(action-model wait water-ph 0.0 -0.01)
+(action-model wait dissolved-oxygen 0.0 -0.01)
+(action-model wait turbidity 0.0 -0.01)
+(action-model wait coral-health 0.0 -0.01)
+(action-model wait fish-activity 0.0 -0.01)
+(action-model wait algae-coverage 0.0 -0.01)
+(action-model wait equipment-power -0.005 -0.005)  ; Slow power drain
+(action-model wait sensor-integrity -0.002 -0.005)
+(action-model wait comm-quality 0.0 -0.01)
+
+; --- observe-water: major precision boost on chemistry ---
+(action-model observe-water water-temperature 0.0 0.12)
+(action-model observe-water water-ph 0.0 0.10)
+(action-model observe-water dissolved-oxygen 0.0 0.12)
+(action-model observe-water turbidity 0.0 0.10)
+(action-model observe-water salinity 0.0 0.08)
+(action-model observe-water equipment-power -0.01 0.0)  ; Costs power
+
+; --- observe-biology: precision boost on living systems ---
+(action-model observe-biology coral-health 0.0 0.10)
+(action-model observe-biology fish-activity 0.0 0.12)
+(action-model observe-biology algae-coverage 0.0 0.10)
+(action-model observe-biology light-level 0.0 0.06)
+(action-model observe-biology equipment-power -0.015 0.0)
+
+; --- sample-water: deep analysis, reveals nutrients and hidden chemistry ---
+(action-model sample-water nutrient-load 0.0 0.18)     ; Big precision gain
+(action-model sample-water water-ph 0.0 0.05)
+(action-model sample-water dissolved-oxygen 0.0 0.08)
+(action-model sample-water salinity 0.0 0.06)
+(action-model sample-water equipment-power -0.03 0.0)   ; Expensive
+
+; --- activate-aerator: directly improves oxygen, costs heavy power ---
+(action-model activate-aerator dissolved-oxygen 0.12 0.05)  ; Raises O2
+(action-model activate-aerator equipment-power -0.04 0.0)   ; Heavy drain
+(action-model activate-aerator current-strength 0.05 0.02)  ; Slight turbulence
+(action-model activate-aerator coral-health 0.02 0.0)       ; Indirect benefit
+
+; --- retract-sensors: protects equipment, loses observation ability ---
+(action-model retract-sensors sensor-integrity 0.05 0.03)  ; Protects
+(action-model retract-sensors equipment-power -0.02 0.0)
+(action-model retract-sensors water-temperature 0.0 -0.08) ; Lose readings
+(action-model retract-sensors dissolved-oxygen 0.0 -0.08)
+(action-model retract-sensors coral-health 0.0 -0.06)      ; Can't see reef
+
+; --- report-to-base: no ecosystem effect, boosts comm quality ---
+(action-model report-to-base comm-quality 0.05 0.06)
+(action-model report-to-base equipment-power -0.015 0.0)
+
+; --- request-guidance: boosts precision on uncertain observables ---
+; (The biologist's answer improves interpretation of ambiguous data)
+(action-model request-guidance coral-health 0.0 0.06)
+(action-model request-guidance algae-coverage 0.0 0.05)
+(action-model request-guidance nutrient-load 0.0 0.08)
+(action-model request-guidance comm-quality -0.02 0.0)  ; Uses bandwidth
+(action-model request-guidance equipment-power -0.02 0.0)
+
+
+; =============================================================================
+; SECTION VIII: ACTION STATISTICS — Learning priors
+; =============================================================================
+;
+; Schema: (action-stats <action> <successes> <attempts> <avg-error>)
+; Initial conservative priors. Updated by action_learning each cycle.
+
+(action-stats wait 8 10 0.08)
+(action-stats observe-water 7 10 0.12)
+(action-stats observe-biology 7 10 0.14)
+(action-stats sample-water 6 10 0.18)
+(action-stats activate-aerator 5 8 0.22)
+(action-stats retract-sensors 6 8 0.15)
+(action-stats report-to-base 7 10 0.10)
+(action-stats request-guidance 5 8 0.20)
+
+
+; =============================================================================
+; SECTION IX: HIDDEN CAUSAL STRUCTURE (Environment Only — Agent Doesn't See)
+; =============================================================================
+;
+; This section documents the TRUE causal structure embedded in the
+; environment simulator. The agent starts with NONE of this knowledge.
+; It must discover these relationships through induction, extend them
+; through deduction, and hypothesize hidden variables through abduction.
+;
+; CHAIN 1: Eutrophication Cascade (lag structure)
+;   nutrient-runoff(t) → nutrient-load(t+1) → algae-coverage(t+2)
+;     → dissolved-oxygen(t+3) [negative] → coral-health(t+4) → fish-activity(t+5)
+;
+; CHAIN 2: Thermal Stress
+;   water-temperature(t) → coral-health(t+1) [negative above 0.7]
+;     → algae-coverage(t+2) [opportunistic growth]
+;
+; CHAIN 3: Storm Effects
+;   current-strength(t) → turbidity(t) [simultaneous]
+;     → light-level(t) [negative, simultaneous]
+;     → sensor-integrity(t+1) [negative if current > 0.7]
+;     → equipment-power(t+1) [drain if current > 0.7]
+;
+; CHAIN 4: Disease (hidden cause)
+;   bacterial-pathogen(t) → coral-health(t+1) [strong negative]
+;     → fish-activity(t+1) [fish flee damaged reef]
+;     → dissolved-oxygen(t+2) [dead coral stops producing O2]
+;
+; The agent should discover Chains 1-3 through induction (correlated
+; prediction errors). Chain 4 is the abduction target: the agent sees
+; coral damage and fish flight without a temperature or nutrient cause,
+; and must hypothesize a hidden variable.
+;
+; Deduction target: nutrient-runoff → coral-health (lag 4). This is too
+; distant for direct induction but can be deduced from the intermediate
+; links once they are established.
+;
+; =============================================================================
+
+
+; =============================================================================
+; SECTION X: SCENARIO EVENTS — Timeline for simulation
+; =============================================================================
+;
+; Phase 1 (cycles 0-15): BASELINE
+;   Normal reef conditions. Agent learns baseline statistics and discovers
+;   basic correlations (current↔turbidity, light↔turbidity).
+;
+; Phase 2 (cycles 16-30): EUTROPHICATION CASCADE
+;   Nutrient runoff begins. Agent observes: nutrients rise → algae spreads
+;   → oxygen drops → coral stressed → fish decline. Must discover the chain.
+;
+; Phase 3 (cycles 31-40): STORM EVENT
+;   Strong currents. Agent must: detect sensor threat, retract equipment,
+;   lose observation capability, wait for conditions to improve. Viability
+;   pressure shifts EFE landscape toward protective actions.
+;
+; Phase 4 (cycles 41-55): DISEASE OUTBREAK
+;   Bacterial pathogen (hidden). Agent sees: coral damage + fish flight
+;   WITHOUT temperature or nutrient cause. Must abduce hidden cause.
+;   Sherlock Holmes effect: hypothesize pathogen → low precision →
+;   sample-water becomes highest info-gain action → spontaneous
+;   investigation.
+;
+; Phase 5 (cycles 56-70): RECOVERY + REPORTING
+;   Environment stabilizes. Agent reports findings to surface biologist.
+;   Conversational grounding: "what is this pattern I discovered?"
+;   Biologist labels the learned structure.
+;
+; =============================================================================
+
+
+; =============================================================================
+; SECTION XI: EXPECTED EMERGENT BEHAVIORS
+; =============================================================================
+;
+; These are NOT programmed. They should EMERGE from EFE minimization over
+; the observables, actions, and discovered structure above.
+;
+; 1. CURIOSITY (Phase 1):
+;    Low precision on ecosystem observables → high info-gain for observe
+;    actions → system preferentially monitors environment.
+;    WHY: EFE = error + cost - info_gain. When info_gain dominates, observe wins.
+;
+; 2. CAUSAL DISCOVERY (Phase 2):
+;    Correlated prediction errors on nutrients/algae/oxygen → suspicion links
+;    → passive models. System discovers eutrophication chain from data.
+;    WHY: Hebbian suspicion accumulates on co-surprising observables.
+;
+; 3. DEDUCTIVE REACH (Phase 2-3):
+;    Direct nutrient→coral link too distant for induction.
+;    Deduction: nutrient→algae + algae→oxygen + oxygen→coral ⇒ nutrient→coral.
+;    WHY: Transitive closure over stable passive models.
+;
+; 4. PROTECTIVE RETREAT (Phase 3):
+;    Storm pushes current-strength high → sensor-integrity approaches
+;    viability bound → viability penalty makes retract-sensors lowest EFE.
+;    WHY: Viability adjustment dominates when near boundary.
+;
+; 5. SHERLOCK HOLMES (Phase 4):
+;    Coral damage without known cause → abduction hypothesizes hidden
+;    pathogen → low-precision belief → sample-water has highest info-gain
+;    → system spontaneously investigates.
+;    WHY: Abduction creates uncertainty; EFE selects uncertainty-reducing action.
+;
+; 6. HONEST UNCERTAINTY (Phase 4-5):
+;    If pathogen hypothesis ungrounded → grounding-completeness drops →
+;    request-guidance gains info → system asks biologist "what is this?"
+;    WHY: Ungrounded concepts create EFE pressure toward conversation.
+;
+; 7. METABOLIC CLEANUP (throughout):
+;    Wrong causal hypotheses (e.g., spurious current→fish link during storm)
+;    fail to predict in later phases → energy drains → metabolic death.
+;    WHY: Rent paid per cycle; only correct predictions earn reward.
+;
+; =============================================================================
