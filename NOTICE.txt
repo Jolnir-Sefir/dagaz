@@ -1,0 +1,14 @@
+Project Dagaz
+Copyright (c) 2026 Roger Harielson <rharielson@gmail.com>
+
+This software is licensed under the GNU Affero General Public License
+v3.0 (AGPL-3.0). See LICENSE-AGPL-3_0.txt for the full license text.
+
+IMPORTANT: This software implements Active Inference with metabolic
+selection — a cognitive architecture with identified dual-use hazards
+in kinetic (weapons) and surveillance applications. The project
+publishes responsible use guidelines (RESPONSIBLE_USE.md) documenting
+mandatory architectural safeguards for physical deployment and the
+mathematically demonstrable failure modes that motivate them.
+
+See docs/ETHICS.md for the full technical analysis.

@@ -1,0 +1,47 @@
+# Project Dagaz — License
+
+Copyright (c) 2026 Roger Harielson <rharielson@gmail.com>
+
+## GNU Affero General Public License v3.0 (AGPL-3.0)
+
+This software is licensed under the GNU Affero General Public License
+v3.0. See `LICENSE-AGPL-3.0.txt` for the full license text.
+
+### What This Means
+
+You **may**:
+- Use, study, modify, and distribute this software for any purpose
+- Deploy it in commercial products and services
+- Build virtual worlds, games, simulations, and AI systems
+
+You **must**:
+- Distribute source code (including modifications) under AGPL-3.0
+- Release source code for network-deployed modifications under AGPL-3.0
+- Preserve copyright notices and license terms
+
+### Commercial Dual-Licensing
+
+If the AGPL-3.0 copyleft obligations are incompatible with your
+intended use, commercial licenses may be available. Contact
+Roger Harielson (rharielson@gmail.com) to discuss terms.
+
+### Responsible Use
+
+This software implements Active Inference with metabolic selection —
+a cognitive architecture whose dynamics are substrate-independent.
+The same mathematics that coordinate virtual actors in a game engine
+can coordinate autonomous physical systems.
+
+The project publishes responsible use guidelines (`RESPONSIBLE_USE.md`)
+and a detailed analysis of dual-use hazards (`ETHICS.md`) that
+document the structural vulnerabilities, failure modes, and
+architectural safeguards relevant to physical deployment. These
+guidelines are not license terms, but they represent the considered
+engineering judgment of the architecture's creators.
+
+We encourage all users and deployers to read `RESPONSIBLE_USE.md`
+and `VIRTUAL_ACTOR_PARADIGM.md` before deploying this architecture
+on systems with physical actuators.
+
+See the full AGPL-3.0 text in `LICENSE-AGPL-3.0.txt` for
+authoritative license terms.
