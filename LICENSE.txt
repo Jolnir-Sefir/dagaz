@@ -43,5 +43,5 @@ We encourage all users and deployers to read `RESPONSIBLE_USE.md`
 and `VIRTUAL_ACTOR_PARADIGM.md` before deploying this architecture
 on systems with physical actuators.
 
-See the full AGPL-3.0 text in `LICENSE-AGPL-3.0.txt` for
+See the full AGPL-3.0 text in `LICENSE` for
 authoritative license terms.
