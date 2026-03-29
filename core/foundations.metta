@@ -195,8 +195,15 @@
 ; Suspicion accumulation
 (config default-plasticity 0.30)            ; Hebbian learning rate
 (config default-structural-stability 0.95)  ; Suspicion decay (per cycle)
-(config default-cognitive-threshold 0.04)   ; Surprise level to trigger attention
-(config raw-error-salience-threshold 0.20)  ; Fallback: large raw error is salient
+(config default-cognitive-threshold 0.005)  ; Surprise level to trigger attention
+                                            ; Lowered from 0.04: the original value was
+                                            ; tuned for step-function changes (baseline →
+                                            ; eutrophication). Sinusoidal dynamics at ±0.15
+                                            ; produce surprise ~0.006 at typical precisions,
+                                            ; which needs a lower threshold to be visible.
+(config raw-error-salience-threshold 0.12)  ; Fallback: large raw error is salient
+                                            ; Lowered from 0.20: catches ±0.15 diurnal
+                                            ; temperature swings via the raw-error path.
 
 ; Structural costs (squared-space calibrated)
 ;
