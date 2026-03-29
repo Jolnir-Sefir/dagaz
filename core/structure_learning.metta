@@ -169,6 +169,56 @@
 
 
 ; =============================================================================
+; SECTION II-B: SALIENCE FILTER
+; =============================================================================
+;
+; Determines whether an error trace is "interesting enough" for the
+; Hebbian accumulator to consider. Two independent paths to salience:
+;
+;   1. Surprise exceeds the cognitive threshold (0.005).
+;      Surprise = 0.5 * precision * error². At typical operating errors
+;      (E~0.15 diurnal, P~0.5), surprise ~ 0.006 — above threshold.
+;      This path fires for sustained environmental oscillations.
+;
+;   2. Raw error magnitude exceeds the salience threshold (0.12).
+;      This is the fallback: even if surprise is dampened by low
+;      precision, a large raw discrepancy still warrants attention.
+;      Zone transitions (E~0.3-0.5) trigger this path.
+;
+; DESIGN: This is a perceptual gate (statistical, appropriate for the
+; perception layer). The Hebbian accumulator itself remains symbolic.
+;
+; NOTE: This function was present in the Tier 2 Python specifications
+; (test_unified_reasoning.py:231) but was missing from the MeTTa source,
+; which caused the entire structure learning pipeline to be inert —
+; collect-suspicion-pairs returned no pairs because every candidate
+; failed the undefined is-salient? check.
+
+; Is an error trace salient enough for the Hebbian accumulator?
+; $surprise: the surprise value (0.5 * precision * error²)
+; $error:    the signed prediction error (observation - belief)
+(= (is-salient? $surprise $error)
+   (or (>= $surprise (get-config default-cognitive-threshold))
+       (>= (abs $error) (get-config raw-error-salience-threshold))))
+
+; Count salient traces in the current lookback window.
+; Used by structure-summary diagnostics.
+; NOTE: Uses direct &state match for cycle-count rather than
+; get-cycle-count, because structure_learning loads before cycle.metta.
+(= (salient-count)
+   (let $window (get-config lookback-window)
+     (let $current (match &state (cycle-count $c) $c)
+       (let $cutoff (- $current $window)
+         (length
+           (collapse
+             (match &self (error-trace $obs $error $surprise $time)
+               (if (and (>= $time $cutoff)
+                        (is-salient? $surprise $error))
+                   $obs
+                   (empty)))))))))
+
+
+; =============================================================================
 ; SECTION III: HEBBIAN SUSPICION ACCUMULATOR
 ; =============================================================================
 ;
