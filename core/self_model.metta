@@ -58,15 +58,15 @@
 
 ; Update action statistics after outcome
 (= (update-action-stats! $action $success $error)
-   (match &self (action-stats $action $s $a $avg-err)
+   (match &state (action-stats $action $s $a $avg-err)
      (let* (
        ($new-attempts (+ $a 1))
        ($new-successes (if $success (+ $s 1) $s))
        ($new-avg-err (+ (* 0.9 $avg-err) (* 0.1 $error)))
      )
      (sequential
-       (remove-atom &self (action-stats $action $s $a $avg-err))
-       (add-atom &self (action-stats $action $new-successes $new-attempts $new-avg-err))
+       (remove-atom &state (action-stats $action $s $a $avg-err))
+       (add-atom &state (action-stats $action $new-successes $new-attempts $new-avg-err))
        (stats-updated $action $new-successes $new-attempts)))))
 
 
@@ -78,11 +78,11 @@
 ; "I can do X" means "my model of X has good success rate and low error"
 
 (= (success-rate $action)
-   (match &self (action-stats $action $s $a $_)
+   (match &state (action-stats $action $s $a $_)
      (/ $s (max 1 $a))))
 
 (= (avg-error $action)
-   (match &self (action-stats $action $_ $_ $err) $err))
+   (match &state (action-stats $action $_ $_ $err) $err))
 
 ; Capability thresholds AS BELIEFS (can be updated through experience)
 ; These start as priors and adapt if the system finds them miscalibrated
@@ -106,12 +106,12 @@
 ; What can Self do? (returns list of capable actions)
 (= (capabilities)
    (collapse 
-     (match &self (action-stats $action $_ $_ $_)
+     (match &state (action-stats $action $_ $_ $_)
        (if (can-do? $action) $action (empty)))))
 
 ; Confidence in capability (derived from sample size and consistency)
 (= (capability-confidence $action)
-   (match &self (action-stats $action $s $a $err)
+   (match &state (action-stats $action $s $a $err)
      (let* (
        ($sample-factor (min 1.0 (/ $a 20)))  ; More attempts = more confidence
        ($success-factor (/ $s (max 1 $a)))
@@ -138,7 +138,7 @@
 
 ; Cannot do due to no model (never attempted)
 (= (limited-by-no-model? $action)
-   (== (match &self (action-stats $action $_ $_ $_) found) ()))
+   (== (match &state (action-stats $action $_ $_ $_) found) ()))
 
 ; Structural limitations (these ARE declared, but sparingly)
 (structural-limitation real-time-perception)
@@ -211,7 +211,7 @@
 
 ; Compute self-competence (aggregate of action success rates)
 (= (compute-self-competence)
-   (let $rates (collapse (match &self (action-stats $a $s $n $_) (/ $s (max 1 $n))))
+   (let $rates (collapse (match &state (action-stats $a $s $n $_) (/ $s (max 1 $n))))
      (safe-avg $rates)))
 
 (= (safe-avg ()) 0.5)
@@ -419,14 +419,14 @@
 ; Returns a queryable list of causeÃ¢â€ â€™effect relationships.
 (= (discovered-relationships)
    (collapse
-     (match &self (passive-model $cause $effect $lag $weight $type)
+     (match &state (passive-model $cause $effect $lag $weight $type)
        (relationship $cause $type $effect (lag $lag) (strength $weight)))))
 
 ; What latent concepts have I invented?
 ; Returns each concept with its member observables.
 (= (invented-concepts)
    (collapse
-     (match &self (latent-variable $name)
+     (match &state (latent-variable $name)
        (let $members (get-latent-members $name)
          (concept $name (explains $members))))))
 
@@ -435,7 +435,7 @@
 (= (structural-predictions-for $obs)
    (let* (
      ($causal (passive-models-affecting $obs))
-     ($latent (collapse (match &self (latent-member $name $obs $w)
+     ($latent (collapse (match &state (latent-member $name $obs $w)
        (latent-prediction $name $obs $w))))
    )
    (structural-predictions $obs
@@ -509,7 +509,7 @@
 ; "What observables did I discover that weren't in my deployment manifest?"
 (= (invented-observables)
    (collapse
-     (match &self (promoted-observable $name $source $cycle)
+     (match &state (promoted-observable $name $source $cycle)
        (let* (
          ($energy (get-lifecycle-energy promoted-observable $name))
          ($val (get-belief-value $name))
@@ -523,7 +523,7 @@
 
 ; "What did observable X start as?"
 (= (observable-origin $name)
-   (let $r (match &self (atom-origin $name $phase $info) ($phase $info))
+   (let $r (match &state (atom-origin $name $phase $info) ($phase $info))
      (if (== $r ())
          (deployment-observable $name)  ; Not invented â€” original
          (let ($phase $info) $r
@@ -552,7 +552,7 @@
 ; "What composite actions have I learned?"
 (= (acquired-skills)
    (collapse
-     (match &self (chunked-action $policy $cycle)
+     (match &state (chunked-action $policy $cycle)
        (let* (
          ($energy (get-lifecycle-energy chunked-action $policy))
          ($cost (get-action-cost $policy))
@@ -592,7 +592,7 @@
 ; "What new senses have I developed?"
 (= (discovered-senses)
    (collapse
-     (match &self (perceptual-field $name $query $prec $cycle)
+     (match &state (perceptual-field $name $query $prec $cycle)
        (let $energy (get-lifecycle-energy perceptual-field $name)
          (discovered-sense $name
            (query $query)
@@ -717,19 +717,19 @@
 
 ; Which generator(s) provided grounding for a specific atom?
 (= (grounding-sources $atom)
-   (let $result (collapse (match &self (grounding-hyp $atom $gen $cycle) $gen))
+   (let $result (collapse (match &state (grounding-hyp $atom $gen $cycle) $gen))
      (if (== $result ()) (no-grounding $atom) $result)))
 
 ; Can the system explain a specific learned concept?
 (= (can-explain? $atom)
-   (let $groundings (collapse (match &self (obs-grounding $atom $rel $target) ($rel $target)))
+   (let $groundings (collapse (match &state (obs-grounding $atom $rel $target) ($rel $target)))
      (not (== $groundings ()))))
 
 ; What does the system think a learned concept means?
 (= (explain-concept $atom)
    (let* (
-     ($groundings (collapse (match &self (obs-grounding $atom $rel $target) ($rel $target))))
-     ($semantic (collapse (match &self (obs-semantic $atom $desc) $desc)))
+     ($groundings (collapse (match &state (obs-grounding $atom $rel $target) ($rel $target))))
+     ($semantic (collapse (match &state (obs-semantic $atom $desc) $desc)))
      ($sources (grounding-sources $atom))
    )
    (if (== $groundings ())
