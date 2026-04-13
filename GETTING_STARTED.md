@@ -1,6 +1,6 @@
 # Getting Started
 
-> **Coming from LangChain, AutoGPT, CrewAI, or similar frameworks?** MeTTa and Active Inference will look unfamiliar. Start with [`ONBOARDING_FOR_BUILDERS.md`](ONBOARDING_FOR_BUILDERS.md) — it maps every concept to Python equivalents and gives you a guided path into the codebase. Then come back here to run things.
+> **Coming from LangChain, AutoGPT, CrewAI, or similar frameworks?** MeTTa and Active Inference will look unfamiliar. Start with [`ONBOARDING_FOR_BUILDERS.md`](docs/ONBOARDING_FOR_BUILDERS.md) — it maps every concept to Python equivalents and gives you a guided path into the codebase. Then come back here to run things.
 
 ## Quick Start — Run the Agent (5 minutes)
 
