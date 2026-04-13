@@ -17,7 +17,7 @@
 (= (register-actions-for-policy! ()) done)
 (= (register-actions-for-policy! ($a . $rest))
    (sequential
-     (add-atom &self (= (any-action) $a))
+     done
      (register-actions-for-policy! $rest)))
 
 ; Populate initial any-action entries from the canonical action list
