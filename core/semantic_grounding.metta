@@ -353,19 +353,19 @@
 
 ; Get all groundings for an observable
 (= (what-is-observable $obs)
-   (collapse (match &self (obs-grounding $obs $rel $target) ($rel $target))))
+   (collapse (match &state (obs-grounding $obs $rel $target) ($rel $target))))
 
 ; Get semantic description of an observable
 (= (describe-observable $obs)
-   (match &self (obs-semantic $obs $desc) $desc))
+   (match &state (obs-semantic $obs $desc) $desc))
 
 ; Get all groundings for an action
 (= (what-is-action $action)
-   (collapse (match &self (action-grounding $action $rel $target) ($rel $target))))
+   (collapse (match &state (action-grounding $action $rel $target) ($rel $target))))
 
 ; Get semantic description of an action
 (= (describe-action $action)
-   (match &self (action-semantic $action $desc) $desc))
+   (match &state (action-semantic $action $desc) $desc))
 
 ; Why does the agent care about this observable?
 (= (why-care-about $obs)
@@ -379,18 +379,18 @@
 
 ; What semantic effects does an action have?
 (= (action-effects $action)
-   (collapse (match &self (action-grounding $action causes $effect) $effect)))
+   (collapse (match &state (action-grounding $action causes $effect) $effect)))
 
 ; What does an action require?
 (= (action-requirements $action)
-   (collapse (match &self (action-grounding $action requires $req) $req)))
+   (collapse (match &state (action-grounding $action requires $req) $req)))
 
 ; Is a concept grounded in a specific primitive?
 ; Recursive traversal: checks direct grounding and indirect chains
 (= (grounded-in? $concept $primitive)
    (if (== $concept $primitive)
        True
-       (let $targets (collapse (match &self (obs-grounding $concept $rel $target) $target))
+       (let $targets (collapse (match &state (obs-grounding $concept $rel $target) $target))
          (any-grounded-in? $targets $primitive))))
 
 ; is-primitive? may come from v3 semantic_primitives or this fallback
@@ -406,7 +406,7 @@
        (if (is-primitive-check? $t)
            (any-grounded-in? $rest $primitive)  ; Primitive: don't recurse deeper
            ; Non-primitive: check if it has grounding links
-           (let $sub (collapse (match &self (obs-grounding $t $r $s) $s))
+           (let $sub (collapse (match &state (obs-grounding $t $r $s) $s))
              (if (any-grounded-in? $sub $primitive)
                  True
                  (any-grounded-in? $rest $primitive))))))
@@ -540,11 +540,11 @@
 
 ; "Which of my beliefs are about properties of SELF vs properties of PLACE?"
 (= (self-beliefs)
-   (collapse (match &self (obs-grounding $obs belongs-to self)
+   (collapse (match &state (obs-grounding $obs belongs-to self)
      (match &state (belief $obs $val $prec) (belief $obs $val $prec)))))
 
 (= (place-beliefs)
-   (collapse (match &self (obs-grounding $obs belongs-to place)
+   (collapse (match &state (obs-grounding $obs belongs-to place)
      (match &state (belief $obs $val $prec) (belief $obs $val $prec)))))
 
 ; "Which actions CAUSE the thing I'm trying to avoid?"
