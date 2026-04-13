@@ -320,14 +320,14 @@
    (let $resolved (resolve-topic $t)
      (sequential
        (if (== $resolved (unknown-topic $t))
-           (add-atom &self (unresolved-topic-log $t $urgency $time))
+           (add-atom &state (unresolved-topic-log $t $urgency $time))
            done)
        (log-unresolved-topics! $rest $urgency $time))))
 
 ; How predictable was this utterance type given our partner model?
 (= (compute-type-predictability $type)
    (let $goal-beliefs (collapse
-     (match &self (partner-goal-belief $goal $conf) ($goal $conf)))
+     (match &state (partner-goal-belief $goal $conf) ($goal $conf)))
      (type-predictability-from-goals $type $goal-beliefs)))
 
 ; Match utterance type to partner goal model
@@ -451,16 +451,16 @@
 ; Cleaned up periodically (same sliding window as error traces).
 
 (= (record-perception! $type $topics $time)
-   (add-atom &self (perception-log $type $topics $time)))
+   (add-atom &state (perception-log $type $topics $time)))
 
 ; Clean old perception logs (keep last N)
 (= (clean-perception-logs! $current-time)
    (let* (
      ($window (get-config lookback-window))
      ($cutoff (- $current-time (* $window 3)))   ; Keep 3x lookback window
-     ($old (collapse (match &self (perception-log $t $tp $time)
+     ($old (collapse (match &state (perception-log $t $tp $time)
        (if (< $time $cutoff) (perception-log $t $tp $time) ()))))
-     ($old-unresolved (collapse (match &self (unresolved-topic-log $t $u $time)
+     ($old-unresolved (collapse (match &state (unresolved-topic-log $t $u $time)
        (if (< $time $cutoff) (unresolved-topic-log $t $u $time) ()))))
    )
    (sequential
@@ -470,7 +470,7 @@
 (= (remove-old-perceptions! ()) done)
 (= (remove-old-perceptions! ($log . $rest))
    (sequential
-     (remove-atom &self $log)
+     (remove-atom &state $log)
      (remove-old-perceptions! $rest)))
 
 
@@ -551,7 +551,7 @@
 
 ; Recent perception history
 (= (recent-perceptions)
-   (collapse (match &self (perception-log $type $topics $time)
+   (collapse (match &state (perception-log $type $topics $time)
      (perceived $time $type $topics))))
 
 ; What topics can we understand?
@@ -562,7 +562,7 @@
 ; What topics have we failed to resolve recently?
 ; This is useful for expanding the topic-map in future deployments.
 (= (recent-unresolved-topics)
-   (collapse (match &self (unresolved-topic-log $topic $urgency $time)
+   (collapse (match &state (unresolved-topic-log $topic $urgency $time)
      (unresolved $topic (urgency $urgency) (at $time)))))
 
 ; Current unresolved salience belief
