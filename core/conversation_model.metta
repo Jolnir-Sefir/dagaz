@@ -200,7 +200,7 @@
 ; Belief about partner's knowledge (what they know)
 ; Schema: (partner-belief <topic> <estimated-knowledge> <our-confidence>)
 (= (partner-knows-about? $topic)
-   (case (match &self (partner-belief $topic $knowledge $conf) ($knowledge $conf))
+   (case (match &state (partner-belief $topic $knowledge $conf) ($knowledge $conf))
      ((($k $c) (> $k 0.4))  ; They probably know about it
       (() False))))
 
@@ -221,13 +221,13 @@
 (= (update-partner-knowledge! ($topic . $rest))
    (sequential
      ; If they mention it, they probably know about it
-     (let $old (match &self (partner-belief $topic $k $c) ($k $c))
+     (let $old (match &state (partner-belief $topic $k $c) ($k $c))
        (if (== $old ())
-           (add-atom &self (partner-belief $topic 0.6 0.4))
+           (add-atom &state (partner-belief $topic 0.6 0.4))
            (let ($k $c) $old
              (sequential
-               (remove-atom &self (partner-belief $topic $k $c))
-               (add-atom &self (partner-belief $topic (min 0.95 (+ $k 0.1)) (min 0.9 (+ $c 0.05))))))))
+               (remove-atom &state (partner-belief $topic $k $c))
+               (add-atom &state (partner-belief $topic (min 0.95 (+ $k 0.1)) (min 0.9 (+ $c 0.05))))))))
      (update-partner-knowledge! $rest)))
 
 (= (update-partner-goals! query)
@@ -239,10 +239,10 @@
 (= (update-partner-goals! $_) done)
 
 (= (boost-partner-goal! $goal $amount)
-   (match &self (partner-goal-belief $goal $conf)
+   (match &state (partner-goal-belief $goal $conf)
      (sequential
-       (remove-atom &self (partner-goal-belief $goal $conf))
-       (add-atom &self (partner-goal-belief $goal (min 0.95 (+ $conf $amount)))))))
+       (remove-atom &state (partner-goal-belief $goal $conf))
+       (add-atom &state (partner-goal-belief $goal (min 0.95 (+ $conf $amount)))))))
 
 
 ; =============================================================================
@@ -270,7 +270,7 @@
 
 ; How surprised are we by this utterance type?
 (= (compute-utterance-surprise $type)
-   (match &self (partner-goal-belief $goal $conf)
+   (match &state (partner-goal-belief $goal $conf)
      (if (matches-goal? $type $goal)
          (- 1.0 $conf)  ; Low surprise if matches expected goal
          0.5)))         ; Moderate surprise otherwise
@@ -310,7 +310,7 @@
 
 (= (remove-list ()) done)
 (= (remove-list ($a . $rest)) 
-   (sequential (remove-atom &self $a) (remove-list $rest)))
+   (sequential (remove-atom &state $a) (remove-list $rest)))
 
 
 ; =============================================================================
@@ -321,19 +321,19 @@
 (current-topics ())
 
 (= (add-topic! $topic)
-   (match &self (current-topics $topics)
+   (match &state (current-topics $topics)
      (sequential
-       (remove-atom &self (current-topics $topics))
-       (add-atom &self (current-topics ($topic . $topics))))))
+       (remove-atom &state (current-topics $topics))
+       (add-atom &state (current-topics ($topic . $topics))))))
 
 (= (current-topics)
-   (match &self (current-topics $t) $t))
+   (match &state (current-topics $t) $t))
 
 (= (clear-topics!)
-   (match &self (current-topics $t)
+   (match &state (current-topics $t)
      (sequential
-       (remove-atom &self (current-topics $t))
-       (add-atom &self (current-topics ())))))
+       (remove-atom &state (current-topics $t))
+       (add-atom &state (current-topics ())))))
 
 
 ; =============================================================================
@@ -343,13 +343,13 @@
 (conversation-turn 0)
 
 (= (current-turn)
-   (match &self (conversation-turn $n) $n))
+   (match &state (conversation-turn $n) $n))
 
 (= (advance-turn!)
    (let $old (current-turn)
      (sequential
-       (remove-atom &self (conversation-turn $old))
-       (add-atom &self (conversation-turn (+ $old 1)))
+       (remove-atom &state (conversation-turn $old))
+       (add-atom &state (conversation-turn (+ $old 1)))
        (+ $old 1))))
 
 
@@ -501,10 +501,10 @@
      (conversation-begun)))
 
 (= (reset-turn-counter!)
-   (match &self (conversation-turn $n)
+   (match &state (conversation-turn $n)
      (sequential
-       (remove-atom &self (conversation-turn $n))
-       (add-atom &self (conversation-turn 0)))))
+       (remove-atom &state (conversation-turn $n))
+       (add-atom &state (conversation-turn 0)))))
 
 (= (reset-conversational-beliefs!)
    (sequential
