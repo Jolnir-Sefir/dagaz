@@ -16,7 +16,7 @@ The system is validated at three tiers:
 
 2. **Tier 2 — Executable Python specifications.** 1:1 logic translations encoding identical formulas, thresholds, and metabolic dynamics as the MeTTa modules. Zero external dependencies. All passing. These prove the *dynamics* work: emergent behaviors, correct orderings, phase transitions.
 
-3. **Tier 3 — Python MeTTa evaluator + orchestrator.** A pure Python MeTTa evaluator (`dagaz_runtime.py`, ~400 lines) loads and executes the canonical MeTTa source through generic pattern matching. It implements no domain-specific logic — only universal MeTTa primitives. EFE computation, affect derivation, action selection, and cognitive cycles all execute from the MeTTa function definitions themselves. A stateless orchestrator (`orchestrator.py`) connects the evaluator to a local LLM (Llama 3.2 3B via Ollama), running the full perception → cognition → verbalization pipeline with hardware sensor injection.
+3. **Tier 3 — Python MeTTa evaluator + orchestrator.** A pure Python MeTTa evaluator (`dagaz_runtime.py`, ~750 lines) loads and executes the canonical MeTTa source through generic pattern matching. It implements no domain-specific logic — only universal MeTTa primitives. EFE computation, affect derivation, action selection, and cognitive cycles all execute from the MeTTa function definitions themselves. A stateless orchestrator (`orchestrator.py`) connects the evaluator to a local LLM (Llama 3.2 3B via Ollama), running the full perception → cognition → verbalization pipeline with hardware sensor injection.
 
 Tier 3 is qualitatively distinct from Tier 2: rather than re-implementing the logic in Python, it executes the *same MeTTa source code* that Tier 1 defines.
 
@@ -73,7 +73,7 @@ Temporal planning uses adaptive beam search inspired by Renormalization Group fl
 
 | File | Role |
 |------|------|
-| `dagaz_runtime.py` | Pure Python MeTTa evaluator (~400 lines). Loads and executes the canonical MeTTa source through generic pattern matching. No domain-specific logic. |
+| `dagaz_runtime.py` | Pure Python MeTTa evaluator (~750 lines). Loads and executes the canonical MeTTa source through generic pattern matching with nondeterministic evaluation. No domain-specific logic. |
 | `orchestrator.py` | Stateless LLM orchestrator. Connects the evaluator to a local LLM for the perception → cognition → verbalization pipeline. |
 | `loader.metta` | MeTTa-native module loading and initialization |
 
