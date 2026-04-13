@@ -1,5 +1,21 @@
 ; =============================================================================
-; METTA COGNITIVE CORE - COGNITIVE CYCLE (v4 - 1-Cycle Lag Fixed)
+; METTA COGNITIVE CORE - COGNITIVE CYCLE
+; =============================================================================
+;
+; The main cognitive loop. One version. No v1/v2 split.
+;
+; PIPELINE:
+;   1. Learn from previous action (action_learning)
+;   2. Compute prediction errors & surprises
+;   3. Derive affect (valence/arousal/dominance)
+;   4. Run reasoning triad (abduction, grounding, analogy)
+;   5. Update beliefs
+;   6. Select action (dispatched to fractal/myopic/policy)
+;   7. Structure learning (Phases 1-5)
+;   8. Snapshot state for next cycle's learning
+;   9. Reward structure, execute action, increment cycle, watchdog
+;
+; Version: 5.0.0 — version collapse (METTA_CLEANUP.md)
 ; =============================================================================
 
 !(import! &self foundations)
@@ -12,11 +28,12 @@
 !(import! &self structure_learning)
 !(import! &self atom_lifecycle)
 
+
 ; =============================================================================
 ; ACTION SELECTION MODE
 ; =============================================================================
 
-(config action-selection-mode policy)
+(config action-selection-mode fractal)
 
 (= (choose-action)
    (let $mode (get-config action-selection-mode)
@@ -49,7 +66,7 @@
 
 
 ; =============================================================================
-; SECTION I-B: METABOLIC CAPITAL (Boundary Condition Fix)
+; SECTION II: METABOLIC CAPITAL
 ; =============================================================================
 
 (= (init-metabolic-capital!)
@@ -84,96 +101,10 @@
 
 
 ; =============================================================================
-; SECTION II: THE COGNITIVE CYCLE (v4 - Reordered to fix lag)
+; SECTION III: THE COGNITIVE CYCLE
 ; =============================================================================
 
 (= (cognitive-cycle!)
-   (if (not (system-operational?))
-       (cycle-aborted (get-system-status))
-   (let* (
-     ; 1. LEARN from previous action
-     ($learning (learn-from-last-action!))
-
-     ; 2. Compute prediction errors & record surprise
-     ($errors (all-prediction-errors))
-     ($total-error (sum-weighted-errors $errors))
-     ($timestamp (get-cycle-count))
-     ($surprises (compute-all-surprises))
-     ($traces (record-all-error-traces! $surprises $timestamp))
-     ($cleanup (clear-old-traces! $timestamp))
-     ($record (record-error! $total-error $timestamp))
-
-     ; 3. Derive affect 
-     ($affect (get-affect-state))
-     ($urgency (compute-urgency))
-     ($confidence (compute-confidence))
-     ($structural (structure-learning-step! $timestamp))
-
-     ; 4. UPDATE BELIEFS (Must happen BEFORE action selection)
-     ($belief-learning (selective-update-all-beliefs!))
-
-     ; 5. SELECT ACTION (Now sees the reality of the updated beliefs)
-     ($action (choose-action))
-
-     ; 6. SNAPSHOT STATE (Records the post-update state for next cycle's learning)
-     ($snapshot (snapshot-pre-action-state! $action))
-     
-     ; 7. Reward structure
-     ($structural-reward (reward-all-structure! $errors $timestamp))
-
-     ; 8. Execute action (gated by pause check)
-     ($exec (if (system-paused?)
-                (action-paused $action)
-                (execute-action! $action)))
-
-     ; 9. Increment cycle counter & Watchdog
-     ($count (increment-cycle-count!))
-     ($watchdog (verify-immutability!))
-   )
-   ; Return complete cycle state
-   (cycle-result
-     (cycle $count)
-     (total-error $total-error)
-     (affect $affect)
-     (urgency $urgency)
-     (confidence $confidence)
-     (action $action)
-     (model-learning $learning)
-     (structure $structural)
-     (watchdog $watchdog)))))
-
-(= (step!)
-   (if (not (system-operational?))
-       (cycle-aborted (get-system-status))
-   (let* (
-     ($learning (learn-from-last-action!))
-     ($timestamp (get-cycle-count))
-     ($surprises (compute-all-surprises))
-     ($traces (record-all-error-traces! $surprises $timestamp))
-     ($cleanup (clear-old-traces! $timestamp))
-     ($structural (structure-learning-step! $timestamp))
-
-     ; UPDATE BELIEFS
-     ($belief-learning (selective-update-all-beliefs!))
-
-     ; CHOOSE ACTION
-     ($action (choose-action))
-     ($snapshot (snapshot-pre-action-state! $action))
-
-     ($reward (reward-all-structure! (all-prediction-errors) $timestamp))
-     ($exec (if (system-paused?)
-                (action-paused $action)
-                (execute-action! $action)))
-     ($count (increment-cycle-count!))
-     ($watchdog (verify-immutability!))
-   )
-   $action)))
-
-; =============================================================================
-; SECTION II-B: THE COGNITIVE CYCLE v2 (Phases 3-5 integration)
-; =============================================================================
-
-(= (cognitive-cycle-v2!)
    (if (not (system-operational?))
        (cycle-aborted (get-system-status))
    (let* (
@@ -204,7 +135,7 @@
      ($structural (structure-learning-step-v2! $timestamp $errors $selected-policy))
 
      ($snapshot (snapshot-pre-action-state! $action))
-     ($structural-reward (reward-all-structure-v2! $errors $timestamp))
+     ($structural-reward (reward-all-structure! $errors $timestamp))
 
      ($exec (if (system-paused?)
                 (action-paused $action)
@@ -221,84 +152,73 @@
      (abduction $abduction) (grounding $grounding)
      (analogy $analogy) (lifecycle $lifecycle) (watchdog $watchdog)))))
 
-(= (decide)
+
+; =============================================================================
+; SECTION III-B: SLIM COGNITIVE CYCLE (game hot path)
+; =============================================================================
+;
+; Keeps: action learning, belief update, affect, error recording, watchdog.
+; Skips: action selection (Python planner), structure learning (Python
+; Perception), abduction/grounding/analogy (evaluator limitations),
+; snapshot (Python server does this after planner runs).
+;
+; Target: <20ms. The full cycle is ~55ms with redundant subsystems.
+
+(= (cognitive-cycle-slim!)
+   (if (not (system-operational?))
+       (cycle-aborted (get-system-status))
    (let* (
+     ; 1. Learn from what happened last cycle
+     ($learning (learn-from-last-action!))
+
+     ; 2. Prediction errors (needed for affect + error history)
      ($errors (all-prediction-errors))
+     ($total-error (sum-weighted-errors $errors))
+     ($timestamp (get-cycle-count))
+     ($record (record-error! $total-error $timestamp))
+
+     ; 3. Affect (dashboard needs this)
      ($affect (get-affect-state))
-     ($action (choose-action))
+
+     ; 4. Belief update (the essential step — Bayesian update from observations)
+     ($belief-learning (selective-update-all-beliefs!))
+
+     ; 5. Bookkeeping
+     ($count (increment-cycle-count!))
+     ($watchdog (verify-immutability!))
    )
-   (decision $errors $affect $action)))
+   (slim-cycle-result
+     (cycle $count) (total-error $total-error)
+     (affect $affect) (model-learning $learning)
+     (watchdog $watchdog)))))
 
 
 ; =============================================================================
-; SECTION III: CYCLE COUNTER
-; =============================================================================
-
-!(add-atom &state (cycle-count 0))
-
-(= (get-cycle-count)
-   (let $n (match &state (cycle-count $c) $c)
-     (if (== $n ()) 0 $n)))
-
-(= (increment-cycle-count!)
-   (let $old (get-cycle-count)
-     (sequential
-       (remove-atom &state (cycle-count $old))
-       (add-atom &state (cycle-count (+ $old 1)))
-       (+ $old 1))))
-
-
-; =============================================================================
-; SECTION IV: EXTERNAL INTERFACE
-; =============================================================================
-
-(= (get-state)
-   (state
-     (cycle (get-cycle-count))
-     (affect (get-affect-state))
-     (urgency (compute-urgency))
-     (confidence (compute-confidence))
-     (curiosity (compute-curiosity))
-     (action (get-current-action))
-     (viability (viability-pressure))
-     (epistemic-weight (epistemic-weight))
-     (model-confidence (overall-model-confidence))
-     (structure (structure-summary))
-     (structural-surprise (structural-surprise))
-     (safety (get-system-status))))
-
-(= (get-action) (choose-action))
-
-(= (get-action-traced) 
-   (let $mode (get-config action-selection-mode)
-     (if (== $mode single)
-         (select-action-myopic-traced)   
-         (select-action-traced 3))))       
-
-(= (process! $obs $val $prec $time)
-   (sequential
-     (inject-observation! $obs $val $prec $time)
-     (step!)))
-
-(= (process-batch! () $time) (step!))
-(= (process-batch! (($obs $val $prec) . $rest) $time)
-   (sequential
-     (inject-observation! $obs $val $prec $time)
-     (process-batch! $rest $time)))
-
-
-; =============================================================================
-; SECTION V: INITIALIZATION
+; SECTION IV: INITIALIZATION
 ; =============================================================================
 
 (= (init!)
    (sequential
      (reset-cycle-count!)
      (clear-error-history!)
-     (clear-snapshot!)      
+     (clear-snapshot!)
      (init-metabolic-capital!)  
-     (initialize-watchdog!) 
+     (initialize-watchdog!)
+     (init-lifecycle!)
      initialized))
+
+(= (init-lifecycle!)
+   (sequential
+     (let $old-traces (collapse (match &state (policy-trace $c $p)
+                                             (policy-trace $c $p)))
+       (remove-atom-list-safe! $old-traces))
+     (let $old-unexp (collapse (match &state (unexplained-error-ratio $c $r)
+                                            (unexplained-error-ratio $c $r)))
+       (remove-atom-list-safe! $old-unexp))
+     (let $old-flag (collapse (match &state (perceptual-expansion-needed $v)
+                                           (perceptual-expansion-needed $v)))
+       (remove-atom-list-safe! $old-flag))
+     lifecycle-initialized))
 
 (= (reset-cycle-count!)
    (sequential
@@ -312,99 +232,24 @@
      (add-atom &state (error-history ()))
      done))
 
+!(add-atom &state (cycle-count 0))
 
-; =============================================================================
-; SECTION VI: EXPLANATION INTERFACE
-; =============================================================================
+(= (get-cycle-count)
+   (match &state (cycle-count $c) $c))
 
-(= (explain)
-   (let* (
-     ($v (compute-valence))
-     ($a (compute-arousal))
-     ($d (compute-dominance))
-     ($action (choose-action))
-     ($pressure (viability-pressure))
-     ($ew (epistemic-weight))
-     ($mc (overall-model-confidence))
-     ($struct (structure-summary))
-   )
-   (explanation
-     (status (interpret-valence $v))
-     (activation (interpret-arousal $a))
-     (confidence (interpret-dominance $d))
-     (doing $action)
-     (because (explain-action-v2 $action $pressure $ew $mc))
-     (structure $struct))))
-
-(= (interpret-valence $v)
-   (if (< $v -0.3) "significant prediction errors"
-   (if (< $v 0.0)  "some prediction errors"
-   (if (< $v 0.3)  "predictions mostly confirmed"
-                   "predictions well confirmed"))))
-
-(= (interpret-arousal $a)
-   (if (> $a 0.7) "highly activated"
-   (if (> $a 0.4) "moderately activated"
-                  "calm")))
-
-(= (interpret-dominance $d)
-   (if (> $d 0.7) "high confidence"
-   (if (> $d 0.4) "moderate confidence"
-                  "uncertain")))
-
-(= (explain-action-v2 $action $pressure $ew $mc)
-   (if (> $pressure 0.3)
-       (action-reason $action "viability pressure" (pressure $pressure))
-       (if (> $ew 0.5)
-           (action-reason $action "information gathering" 
-             (epistemic-weight $ew) (model-confidence $mc))
-           (action-reason $action "lowest expected error"
-             (epistemic-weight $ew)))))
+(= (increment-cycle-count!)
+   (let $old (get-cycle-count)
+     (sequential
+       (remove-atom &state (cycle-count $old))
+       (add-atom &state (cycle-count (+ $old 1)))
+       (+ $old 1))))
 
 
 ; =============================================================================
-; SECTION VII: VIABILITY PRESSURE (delegated to actions module)
+; SECTION V: STATE QUERY
 ; =============================================================================
 
-(= (viability-pressure) (get-viability-pressure))
-
-
-; =============================================================================
-; SECTION VIII: STRUCTURAL REWARD BRIDGE
-; =============================================================================
-
-(= (reward-all-structure! $errors $current-cycle)
-   (reward-structure-from-errors! $errors $current-cycle))
-
-(= (reward-structure-from-errors! () $cycle) done)
-(= (reward-structure-from-errors!
-     ((prediction-error $obs $error $abs-err $prec $weighted) . $rest) $cycle)
-   (sequential
-     (reward-structure-for! $obs $error $cycle)
-     (reward-structure-from-errors! $rest $cycle)))
-
-
-; =============================================================================
-; SECTION VIII-B: STRUCTURAL REWARD v2 (coherence-aware + lifecycle)
-; =============================================================================
-
-(= (reward-all-structure-v2! $errors $current-cycle)
-   (reward-structure-from-errors-v2! $errors $current-cycle $errors))
-
-(= (reward-structure-from-errors-v2! () $cycle $all-errors) done)
-(= (reward-structure-from-errors-v2!
-     ((prediction-error $obs $error $abs-err $prec $weighted) . $rest)
-     $cycle $all-errors)
-   (sequential
-     (reward-structure-for-v2! $obs $error $cycle $all-errors)
-     (reward-structure-from-errors-v2! $rest $cycle $all-errors)))
-
-
-; =============================================================================
-; SECTION IV-B: EXTERNAL INTERFACE v2 (lifecycle-aware)
-; =============================================================================
-
-(= (get-state-v2)
+(= (get-state)
    (state
      (cycle (get-cycle-count))
      (affect (get-affect-state))
@@ -424,38 +269,10 @@
 
 
 ; =============================================================================
-; SECTION V-B: INITIALIZATION v2 (lifecycle-aware)
+; SECTION VI: EXPLANATION INTERFACE
 ; =============================================================================
 
-(= (init-lifecycle!)
-   (sequential
-     (let $old-traces (collapse (match &state (policy-trace $c $p)
-                                             (policy-trace $c $p)))
-       (remove-atom-list-safe! $old-traces))
-     (let $old-unexp (collapse (match &state (unexplained-error-ratio $c $r)
-                                            (unexplained-error-ratio $c $r)))
-       (remove-atom-list-safe! $old-unexp))
-     (let $old-flag (collapse (match &state (perceptual-expansion-needed $v)
-                                           (perceptual-expansion-needed $v)))
-       (remove-atom-list-safe! $old-flag))
-     lifecycle-initialized))
-
-(= (init-v2!)
-   (sequential
-     (reset-cycle-count!)
-     (clear-error-history!)
-     (clear-snapshot!)
-     (init-metabolic-capital!)  
-     (initialize-watchdog!)
-     (init-lifecycle!)
-     initialized))
-
-
-; =============================================================================
-; SECTION VI-B: EXPLANATION INTERFACE v2 (lifecycle-aware)
-; =============================================================================
-
-(= (explain-v2)
+(= (explain)
    (let* (
      ($v (compute-valence))
      ($a (compute-arousal))
@@ -468,14 +285,47 @@
      ($life (lifecycle-atom-count))
    )
    (explanation
-     (status (interpret-valence $v))
-     (activation (interpret-arousal $a))
-     (confidence (interpret-dominance $d))
+     (status $v)
+     (activation $a)
+     (confidence $d)
      (doing $action)
-     (because (explain-action-v2 $action $pressure $ew $mc))
+     (because (explain-action $action $pressure $ew $mc))
      (structure $struct)
      (lifecycle $life))))
 
+(= (explain-action $action $pressure $ew $mc)
+   (if (> $pressure 0.3)
+       (action-reason $action "viability pressure" (pressure $pressure))
+       (if (> $ew 0.5)
+           (action-reason $action "information gathering" 
+             (epistemic-weight $ew) (model-confidence $mc))
+           (action-reason $action "lowest expected error"
+             (epistemic-weight $ew)))))
+
+
 ; =============================================================================
-; END OF COGNITIVE CYCLE
+; SECTION VII: VIABILITY PRESSURE (delegated to actions module)
+; =============================================================================
+
+(= (viability-pressure) (get-viability-pressure))
+
+
+; =============================================================================
+; SECTION VIII: STRUCTURAL REWARD
+; =============================================================================
+
+(= (reward-all-structure! $errors $current-cycle)
+   (reward-structure-from-errors! $errors $current-cycle $errors))
+
+(= (reward-structure-from-errors! () $cycle $all-errors) done)
+(= (reward-structure-from-errors!
+     ((prediction-error $obs $error $abs-err $prec $weighted) . $rest)
+     $cycle $all-errors)
+   (sequential
+     (reward-structure-for-v2! $obs $error $cycle $all-errors)
+     (reward-structure-from-errors! $rest $cycle $all-errors)))
+
+
+; =============================================================================
+; END OF COGNITIVE CYCLE (v5.0.0)
 ; =============================================================================
