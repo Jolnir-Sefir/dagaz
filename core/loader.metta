@@ -20,12 +20,6 @@
 ;                 Primitives, scales, grounding chains.
 ;                 ~328 atoms, never modified.
 ;
-;   All 20 modules consolidated into 15 files via 5 merges:
-;     foundations        = foundations + ontology_accessors
-;     planning           = policy_efe + planning
-;     perception         = perception + proprioception
-;     structure_learning = structure_learning + abduction
-;     grounding          = semantic_grounding + action_grounding + grounding_hypotheses
 ;
 ; The invariant: &self is NEVER mutated after loading completes.
 ; All runtime state lives in &state. The trie crash cannot trigger
@@ -51,16 +45,25 @@
 !(import! &self core/cycle)
 !(import! &self core/planning)
 !(import! &self core/action_learning)
+!(import! &self core/abduction)
+!(import! &self core/grounding_hypotheses)
+!(import! &self core/policy_efe)
 
 ; Layer 2: Knowledge
 !(import! &self core/self_model)
 !(import! &self core/action_grounding)
 !(import! &self core/analogy_blending)
+!(import! &self core/dimensional_primitives)
+!(import! &self core/semantic_primitives)
 
 ; Layer 3: Interaction
 !(import! &self core/conversation_model)
 !(import! &self core/perception)
+!(import! &self core/proprioception)
+!(import! &self semantic_grounding)
 
+; Layer 4: Domain Configuration (user-editable — load last)
+!(import! &self core/domain)
 
 ; Initialization
 (= (system-init!)
