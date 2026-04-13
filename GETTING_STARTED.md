@@ -96,7 +96,7 @@ The system is validated at three levels:
 
 **Tier 2 — Executable Python specifications.** 1:1 logic translations of the MeTTa modules into self-contained Python. Same formulas, same thresholds, same metabolic dynamics, different host language. These prove the dynamics work: every emergent behavior, every phase transition, every scaling curve. The relationship is analogous to a physicist's equations validated by simulation.
 
-**Tier 3 — Python MeTTa evaluator + orchestrator.** `dagaz_runtime.py` is a ~400-line pure Python MeTTa interpreter that loads and executes the canonical MeTTa source through generic tokenization, parsing, unification, and function dispatch. It implements no domain-specific logic — only universal MeTTa primitives (`let`, `let*`, `if`, `case`, `match`, `collapse`, arithmetic, logic, `add-atom`/`remove-atom`, cons-cell construction). The cognitive behavior emerges from evaluating the MeTTa function definitions themselves. `orchestrator.py` connects this evaluator to a local language model, running the full perception → cognition → verbalization pipeline.
+**Tier 3 — Python MeTTa evaluator + orchestrator.** `dagaz_runtime.py` is a ~750-line pure Python MeTTa interpreter that loads and executes the canonical MeTTa source through generic tokenization, parsing, unification, and function dispatch. It implements no domain-specific logic — only universal MeTTa primitives (`let`, `let*`, `if`, `case`, `match`, `collapse`, arithmetic, logic, `add-atom`/`remove-atom`, cons-cell construction). Evaluation is nondeterministic — `match` iterates all bindings, `collapse` gathers results, and function dispatch explores all matching definitions. The cognitive behavior emerges from evaluating the MeTTa function definitions themselves. `orchestrator.py` connects this evaluator to a local language model, running the full perception → cognition → verbalization pipeline.
 
 Tier 3 is qualitatively distinct from Tier 2: rather than re-implementing the logic in Python, it executes the *same MeTTa source code* that Tier 1 defines. This partially closes the gap between "the dynamics work" (Tier 2) and "the MeTTa source is correct" (Tier 1).
 
@@ -128,4 +128,4 @@ dagaz/
 
 ## Questions and Contributions
 
-This is an early-stage research project. If you find something interesting, confusing, or wrong, open an issue. Contributions that help resolve the Hyperon runtime blockers are especially welcome — as are improvements to the Python evaluator's MeTTa coverage (nondeterministic match semantics, in particular).
+This is an early-stage research project. If you find something interesting, confusing, or wrong, open an issue. Contributions that help resolve the Hyperon runtime blockers are especially welcome — as are new domain scenarios that test the architecture's generality claims.
