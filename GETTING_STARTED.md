@@ -1,6 +1,6 @@
 # Getting Started
 
-> **Coming from LangChain, AutoGPT, CrewAI, or similar frameworks?** MeTTa and Active Inference will look unfamiliar. Start with [`ONBOARDING_FOR_BUILDERS.md`](docs/ONBOARDING_FOR_BUILDERS.md) — it maps every concept to Python equivalents and gives you a guided path into the codebase. Then come back here to run things.
+> **Coming from LangChain, AutoGPT, CrewAI, or similar frameworks?** MeTTa and Active Inference will look unfamiliar. Start with [`ONBOARDING_FOR_BUILDERS.md`](ONBOARDING_FOR_BUILDERS.md) — it maps every concept to Python equivalents and gives you a guided path into the codebase. Then come back here to run things.
 
 ## Quick Start — Run the Agent (5 minutes)
 
@@ -84,13 +84,15 @@ If you want to understand the architecture, start here:
 2. **`dagaz_paper_v6.tex`** — The whitepaper. Full technical presentation.
 3. **`ETHICS.md`** — Dual-use analysis and safety considerations.
 
+If you want to **configure a new scenario**, start with **`core/domain.metta`** — it's a self-documenting template with six sections (actions, observables, preferences, viability bounds, action models, costs). Edit the declarations, and the cognitive core adapts automatically.
+
 If you want to go deeper into a specific subsystem, each has a design document and a corresponding MeTTa implementation. The mapping is in the README.
 
 ## Three-Tier Validation
 
 The system is validated at three levels:
 
-**Tier 1 — MeTTa source (canonical).** The 22 `.metta` files are the architecture. They define types, functions, spaces, and dynamics in MeTTa, a symbolic meta-language for the OpenCog Hyperon framework. Native Hyperon execution is currently blocked by two runtime bugs (cons-cell pattern matching, trie index crash). The canonical files are unpatched — the bugs are in the runtime, not the architecture. See `TRIE_CRASH_FINDINGS.md` for the investigation.
+**Tier 1 — MeTTa source (canonical).** The 23 `.metta` files are the architecture. They define types, functions, spaces, and dynamics in MeTTa, a symbolic meta-language for the OpenCog Hyperon framework. Native Hyperon execution is currently blocked by two runtime bugs (cons-cell pattern matching, trie index crash). The canonical files are unpatched — the bugs are in the runtime, not the architecture. See `TRIE_CRASH_FINDINGS.md` for the investigation.
 
 **Tier 2 — Executable Python specifications.** 1:1 logic translations of the MeTTa modules into self-contained Python. Same formulas, same thresholds, same metabolic dynamics, different host language. These prove the dynamics work: every emergent behavior, every phase transition, every scaling curve. The relationship is analogous to a physicist's equations validated by simulation.
 
@@ -100,7 +102,7 @@ Tier 3 is qualitatively distinct from Tier 2: rather than re-implementing the lo
 
 ## About the MeTTa Source
 
-The `.metta` files are the canonical architecture — 22 modules, ~12,200 lines. They are written against correct MeTTa syntax per the language specification.
+The `.metta` files are the canonical architecture — 23 modules, ~12,600 lines. They are written against correct MeTTa syntax per the language specification.
 
 If you want to explore the MeTTa source, `loader.metta` shows the module dependency order, and `cycle.metta` is the main cognitive loop that ties everything together.
 
@@ -109,7 +111,8 @@ If you want to explore the MeTTa source, `loader.metta` shows the module depende
 ```
 dagaz/
 ├── core/
-│   └── *.metta           # 22 cognitive modules (the architecture)
+│   ├── *.metta           # 22 cognitive modules (the architecture)
+│   └── domain.metta      # Domain configuration — edit this for your scenario
 ├── benchmarks/
 │   └── test_*.py          # Executable specifications (Tier 2)
 ├── dagaz_runtime.py       # Pure Python MeTTa evaluator (Tier 3)
