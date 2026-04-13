@@ -95,9 +95,12 @@
 (config abductive-precision 0.10)
 
 ; Minimum passive-model weight to consider for abduction.
-; Weak causal links (weight < 0.15) are too uncertain to justify
-; hypothesizing their causes.
-(config abductive-min-link-weight 0.15)
+; Aligned with the promotion threshold: sqrt(structural-cost-link) ≈ 0.045.
+; If a link earned its existence through metabolic selection, it is strong
+; enough for abduction to hypothesize about its causes. The previous value
+; (0.15) created a dead zone where links existed but couldn't trigger
+; abduction — 3× above the promotion threshold.
+(config abductive-min-link-weight 0.045)
 
 ; Minimum metabolic energy for a passive model to be used in abduction.
 ; Models that are dying (low energy) shouldn't drive hypotheses.
@@ -123,21 +126,21 @@
 ; =============================================================================
 
 (= (reset-abductive-budget!)
-   (let $old (match &self (abductive-hypotheses-this-cycle $n) $n)
+   (let $old (match &state (abductive-hypotheses-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (abductive-hypotheses-this-cycle $old))
-       (add-atom &self (abductive-hypotheses-this-cycle 0))
+       (remove-atom &state (abductive-hypotheses-this-cycle $old))
+       (add-atom &state (abductive-hypotheses-this-cycle 0))
        done)))
 
 (= (abductive-budget-available?)
-   (let $used (match &self (abductive-hypotheses-this-cycle $n) $n)
+   (let $used (match &state (abductive-hypotheses-this-cycle $n) $n)
      (< $used (get-config abductive-budget-per-cycle))))
 
 (= (use-abductive-budget!)
-   (let $old (match &self (abductive-hypotheses-this-cycle $n) $n)
+   (let $old (match &state (abductive-hypotheses-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (abductive-hypotheses-this-cycle $old))
-       (add-atom &self (abductive-hypotheses-this-cycle (+ $old 1)))
+       (remove-atom &state (abductive-hypotheses-this-cycle $old))
+       (add-atom &state (abductive-hypotheses-this-cycle (+ $old 1)))
        done)))
 
 
@@ -180,7 +183,7 @@
 (= (remove-source-list! ()) done)
 (= (remove-source-list! ($a . $rest))
    (sequential
-     (remove-atom &self $a)
+     (remove-atom &state $a)
      (remove-source-list! $rest)))
 
 ; Query: is this belief abductively sourced?
@@ -262,11 +265,11 @@
 (= (collect-abductive-candidates $current-cycle)
    (let $threshold (get-config abductive-surprise-threshold)
      (collapse
-       (match &self (error-trace $effect $error $surprise $time)
+       (match &state (error-trace $effect $error $surprise $time)
          (if (and (> $surprise $threshold)
                   (== $time $current-cycle))  ; Only current cycle's traces
              ; Find passive models where this observable is the effect
-             (match &self (passive-model $cause $effect $lag $weight $type)
+             (match &state (passive-model $cause $effect $lag $weight $type)
                (let* (
                  ($min-weight (get-config abductive-min-link-weight))
                  ($min-energy (get-config abductive-min-energy))
@@ -285,7 +288,7 @@
 
 ; Safe accessor for passive model energy (returns 0.0 if not found)
 (= (get-pm-energy-safe $cause $effect)
-   (let $r (match &self (metabolic-energy passive-model $cause $effect $e) $e)
+   (let $r (match &state (metabolic-energy passive-model $cause $effect $e) $e)
      (if (== $r ()) 0.0 $r)))
 
 ; Safe accessor for belief precision (returns 1.0 if not found, blocking abduction)
@@ -344,7 +347,7 @@
                done)
 
            ; Log the abductive inference (for transparency/diagnostics)
-           (add-atom &self (abduction-log $cause $effect $hyp-val $hyp-prec $cycle))
+           (add-atom &state (abduction-log $cause $effect $hyp-val $hyp-prec $cycle))
 
            ; Budget accounting
            (use-abductive-budget!)
@@ -454,7 +457,7 @@
 ; Summary of abductive activity
 (= (abduction-summary)
    (let* (
-     ($logs (collapse (match &self (abduction-log $c $e $hv $hp $cy)
+     ($logs (collapse (match &state (abduction-log $c $e $hv $hp $cy)
        (abduction-entry $c $e $hv $hp $cy))))
      ($abduced-beliefs (collapse (match &state (belief-source $obs abduced $cy) $obs)))
      ($n-logs (length $logs))
@@ -467,7 +470,7 @@
 
 ; Recent abductions (current cycle only)
 (= (recent-abductions $cycle)
-   (collapse (match &self (abduction-log $cause $effect $hyp $prec $cy)
+   (collapse (match &state (abduction-log $cause $effect $hyp $prec $cy)
      (if (== $cy $cycle)
          (recent-abduction $cause (from $effect) (hypothesized $hyp))
          (empty)))))
@@ -486,7 +489,7 @@
    (let* (
      ($window (* 3 (get-config lookback-window)))  ; 3x lookback
      ($cutoff (- $current-cycle $window))
-     ($old (collapse (match &self (abduction-log $c $e $hv $hp $cy)
+     ($old (collapse (match &state (abduction-log $c $e $hv $hp $cy)
        (if (< $cy $cutoff)
            (abduction-log $c $e $hv $hp $cy)
            (empty)))))
@@ -496,7 +499,7 @@
 (= (remove-old-abduction-logs! ()) done)
 (= (remove-old-abduction-logs! ($log . $rest))
    (sequential
-     (remove-atom &self $log)
+     (remove-atom &state $log)
      (remove-old-abduction-logs! $rest)))
 
 ; Detailed report: for each abduced belief, show evidence chain
@@ -507,7 +510,7 @@
          ($bval (get-belief-value $obs))
          ($bprec (get-belief-precision $obs))
          ; Find the most recent abduction log for this observable
-         ($logs (collapse (match &self (abduction-log $obs $effect $hv $hp $cy)
+         ($logs (collapse (match &state (abduction-log $obs $effect $hv $hp $cy)
            (log-entry $effect $hv $cy))))
        )
        (abduction-detail $obs
