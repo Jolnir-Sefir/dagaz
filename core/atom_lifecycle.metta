@@ -366,7 +366,7 @@
 
      ; --- Register for action selection ---
      ; This makes the chunk available to policy_efe.metta's any-action
-     ($selectable (add-atom &self (= (any-action) $policy)))
+     ($selectable done)
 
      ; --- Initialize lifecycle energy ---
      ($energy (set-lifecycle-energy! chunked-action $policy
@@ -451,7 +451,7 @@
      ($cost-removed (remove-atom-list-safe! $cost-atom))
 
      ; --- Deregister from action selection ---
-     ($dereg (remove-atom &self (= (any-action) $policy)))
+     ($dereg done)
 
      ; --- Remove registration ---
      ($reg (match &state (chunked-action $policy $cyc)
