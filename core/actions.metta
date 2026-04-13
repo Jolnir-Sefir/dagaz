@@ -318,32 +318,33 @@
    (let $r (match &state (belief $obs $val $prec) $prec)
      (if (== $r ()) 0.5 $r)))
 
-; Viability pressure derived from the agent's own epistemic state.
+; Viability pressure derived from physical proximity to the boundary.
 ;
-; INVARIANT: The threshold at which pressure activates is NOT a hand-tuned
-; constant — it IS the agent's uncertainty (1 - precision).
+; INVARIANT: Precision AMPLIFIES existential risk. An agent that knows
+; with certainty it is near death should be MORE alarmed, not less.
 ;
-; safety_ratio = margin / uncertainty
-;   When < 1: boundary is within one uncertainty-width → pressure activates
-;   When ≥ 1: boundary is far enough relative to uncertainty → no pressure
+; The danger zone is a fraction of the viable range where pressure
+; activates. Within this zone, pressure scales linearly from 0 to 1,
+; multiplied by precision — the more certain the agent is about its
+; proximity to the boundary, the stronger the signal.
 ;
-; This means:
-;   - Low precision → wide safety margin (cautious under uncertainty)
-;   - High precision → narrow safety margin (confident about position)
-;   - The "threshold" emerges from the belief state, not from a parameter
+; This is the biological analogy: pain is the highest-precision signal
+; in the nervous system. Certainty about damage produces urgency.
 ;
 (= (compute-boundary-pressure $obs $val $prec $min $max)
    (let* (
-     ($pref (get-preferred-value $obs $val))
      ($range (- $max $min))
-     ($dist-from-pref (/ (abs (- $val $pref)) $range))
-     ($margin (- 1.0 $dist-from-pref))
-     ($uncertainty (max (- 1.0 $prec) 0.01))
-     ($safety-ratio (/ $margin $uncertainty))
+     ($margin-lo (- $val $min))
+     ($margin-hi (- $max $val))
+     ($margin (min $margin-lo $margin-hi))
+     ($normalized (if (> $range 0.001) (/ $margin $range) 1.0))
+     ($danger-zone (get-config viability-danger-zone))
    )
-   (if (< $safety-ratio 1.0)
-       (- 1.0 $safety-ratio)
-       0.0)))
+   (if (< $normalized 0.0)
+       1.0
+       (if (< $normalized $danger-zone)
+           (* $prec (- 1.0 (/ $normalized $danger-zone)))
+           0.0))))
 
 (= (get-viability-pressure)
    (let* (
@@ -369,7 +370,10 @@
 
 ; base-actions is the single source of truth for the default action set.
 ; compute-efe-list and find-min-efe-dynamic (Section XII) handle any length.
-(= (base-actions) (wait observe retreat reflect))
+; base-actions reads from &state, set by the server during init.
+; This eliminates the boot-time &self mutation hack.
+(= (base-actions)
+   (match &state (active-action-set $actions) $actions))
 
 (= (select-action-myopic)
    (let* (
