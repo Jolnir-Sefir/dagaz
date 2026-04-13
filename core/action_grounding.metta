@@ -150,17 +150,17 @@
 
 ; Check if a symbol is a known observable
 (= (is-observable? $sym)
-   (let $r (collapse (match &self (obs-grounding $sym $rel $target) $sym))
+   (let $r (collapse (match &state (obs-grounding $sym $rel $target) $sym))
      (if (== $r ()) False True)))
 
 ; Check if a symbol is a grounded concept
 (= (is-concept? $sym)
-   (let $r (collapse (match &self (concept-ground $sym $rel $target) $sym))
+   (let $r (collapse (match &state (concept-ground $sym $rel $target) $sym))
      (if (== $r ()) False True)))
 
 ; Check if a symbol is a known action
 (= (is-action? $sym)
-   (let $r (collapse (match &self (action-grounding $sym $rel $target) $sym))
+   (let $r (collapse (match &state (action-grounding $sym $rel $target) $sym))
      (if (== $r ()) False True)))
 
 ; Classify a term
@@ -202,7 +202,7 @@
 
 ; Reference to an action (grounded because it has action-grounding)
 (= (grounded-action-ref $action)
-   (let $desc (collapse (match &self (action-semantic $action $d) $d))
+   (let $desc (collapse (match &state (action-semantic $action $d) $d))
      (action-ref $action $desc)))
 
 ; Bind an observable to its current belief state
@@ -226,7 +226,7 @@
 
 ; Decompose a concept into its grounding links, recursively grounding targets
 (= (decompose-concept $concept)
-   (let $links (collapse (match &self (concept-ground $concept $rel $target) ($rel $target)))
+   (let $links (collapse (match &state (concept-ground $concept $rel $target) ($rel $target)))
      (decomposed $concept (ground-links $links))))
 
 ; Ground each link target (one level â€” not infinite recursion)
@@ -250,7 +250,7 @@
 
 ; Concept summary: name + what it's bound to (without full decomposition)
 (= (concept-summary $concept)
-   (let $bound (collapse (match &self (concept-ground $concept bound-to $obs) $obs))
+   (let $bound (collapse (match &state (concept-ground $concept bound-to $obs) $obs))
      (if (== $bound ())
          (concept-ref $concept)
          (concept-ref $concept (binds-to (car-safe $bound))))))
@@ -270,22 +270,22 @@
    (let* (
      ; 1. What IS this action? (nature: is-a links)
      ($nature-links (collapse 
-       (match &self (action-grounding $action is-a $target) $target)))
+       (match &state (action-grounding $action is-a $target) $target)))
      ($grounded-nature (ground-term-list $nature-links))
 
      ; 2. What does it CAUSE? (effects)
      ($effect-links (collapse 
-       (match &self (action-grounding $action causes $target) $target)))
+       (match &state (action-grounding $action causes $target) $target)))
      ($grounded-effects (ground-term-list $effect-links))
 
      ; 3. What does it REQUIRE? (prerequisites)
      ($req-links (collapse 
-       (match &self (action-grounding $action requires $target) $target)))
+       (match &state (action-grounding $action requires $target) $target)))
      ($grounded-reqs (ground-term-list $req-links))
 
      ; 4. What does it ENABLE? 
      ($enable-links (collapse 
-       (match &self (action-grounding $action enables $target) $target)))
+       (match &state (action-grounding $action enables $target) $target)))
      ($grounded-enables (ground-term-list $enable-links))
 
      ; 5. Current affect (live binding)
@@ -294,7 +294,7 @@
      ($affect-qual (qualify-affect $valence $arousal))
 
      ; 6. Semantic description
-     ($desc (collapse (match &self (action-semantic $action $d) $d)))
+     ($desc (collapse (match &state (action-semantic $action $d) $d)))
    )
    (action-chain
      (action $action)
@@ -332,7 +332,7 @@
 (= (acting-from-fear?)
    (let* (
      ($action (get-current-action))
-     ($effects (collapse (match &self (action-grounding $action causes $e) $e)))
+     ($effects (collapse (match &state (action-grounding $action causes $e) $e)))
      ($has-threat-link (mentions-threat? $effects))
      ($valence (compute-valence))
      ($arousal (compute-arousal))
@@ -381,8 +381,8 @@
 (= (acting-to-learn?)
    (let* (
      ($action (get-current-action))
-     ($is-sense (collapse (match &self (action-grounding $action is-a sense) True)))
-     ($causes-know (collapse (match &self (action-grounding $action causes know) True)))
+     ($is-sense (collapse (match &state (action-grounding $action is-a sense) True)))
+     ($causes-know (collapse (match &state (action-grounding $action causes know) True)))
    )
    (if (or (not (== $is-sense ())) (not (== $causes-know ())))
        (yes (because (action-is sense) (causes knowledge)))
@@ -395,7 +395,7 @@
    (let* (
      ($action (get-current-action))
      ($moves (collapse 
-       (match &self (action-grounding $action causes (different place)) True)))
+       (match &state (action-grounding $action causes (different place)) True)))
    )
    (if (not (== $moves ()))
        (yes (because (causes (different place))))
@@ -410,15 +410,15 @@
    (let* (
      ; What each action causes (semantic level)
      ($chosen-effects (collapse 
-       (match &self (action-grounding $chosen causes $e) $e)))
+       (match &state (action-grounding $chosen causes $e) $e)))
      ($alt-effects (collapse 
-       (match &self (action-grounding $alternative causes $e) $e)))
+       (match &state (action-grounding $alternative causes $e) $e)))
      
      ; What each action IS
      ($chosen-nature (collapse 
-       (match &self (action-grounding $chosen is-a $n) $n)))
+       (match &state (action-grounding $chosen is-a $n) $n)))
      ($alt-nature (collapse 
-       (match &self (action-grounding $alternative is-a $n) $n)))
+       (match &state (action-grounding $alternative is-a $n) $n)))
 
      ; EFE values (the numeric justification)
      ($chosen-efe (compute-efe $chosen))
@@ -496,7 +496,7 @@
 
 ; Find all terms used in action groundings
 (= (all-grounding-targets)
-   (collapse (match &self (action-grounding $a $r $t) $t)))
+   (collapse (match &state (action-grounding $a $r $t) $t)))
 
 ; Check which targets are ungrounded
 (= (find-ungrounded)
