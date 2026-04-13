@@ -189,21 +189,14 @@
 
 ; --- Average model confidence across all observables in a sim-state ---
 
-(= (sim-avg-confidence (sim-state $beliefs))
-   (sim-avg-conf-beliefs $beliefs 0.0 0))
+; --- Average model confidence ---
+; Model confidence is a property of the action-model atoms in &state,
+; NOT of the simulated belief state. It doesn't change during simulation.
+; Delegates to overall-model-confidence from action_learning.metta which
+; averages across ALL action-model atoms — works for any action set.
 
-(= (sim-avg-conf-beliefs SNil $sum $count)
-   (if (== $count 0) 0.5 (/ $sum $count)))
-(= (sim-avg-conf-beliefs (SCons $o $v $p $rest) $sum $count)
-   ; Average the model confidence across all actions for this observable
-   ; Approximation: use the max confidence across actions as representative
-   (let* (
-     ($cw (get-model-confidence wait $o))
-     ($co (get-model-confidence observe $o))
-     ($cr (get-model-confidence retreat $o))
-     ($best-conf (max $cw (max $co $cr)))
-   )
-   (sim-avg-conf-beliefs $rest (+ $sum $best-conf) (+ $count 1))))
+(= (sim-avg-confidence $state)
+   (overall-model-confidence))
 
 ; --- Average precision in a sim-state ---
 
@@ -305,7 +298,7 @@
        ()
    (let* (
      ($noise (noise-floor-at-depth $state $depth))
-     ($best-efe (candidate-efe (car $sorted-candidates)))
+     ($best-efe (candidate-efe (list-head $sorted-candidates)))
      ; Adaptive beam: narrows with degraded confidence
      ($deg-conf (degraded-confidence $state $depth))
      ($base-beam (get-planning-config base-beam-width))
@@ -403,28 +396,31 @@
 ;
 ; Schema: (fractal-pruned <action> <reason> <detail>)
 ;         (fractal-pruned-at <action> <depth> <reason> <detail>)
+;
+; Stored in &state (working memory), not &self (static code).
+; These are transient per-cycle diagnostics, not function definitions.
 
 (= (record-pruning! $action $reason $detail)
-   (add-atom &self (fractal-pruned $action $reason $detail)))
+   (add-atom &state (fractal-pruned $action $reason $detail)))
 
 (= (record-pruning-at-depth! $action $depth $reason $detail)
-   (add-atom &self (fractal-pruned-at $action $depth $reason $detail)))
+   (add-atom &state (fractal-pruned-at $action $depth $reason $detail)))
 
 ; Query: what was pruned and why?
 (= (all-pruning-records)
-   (collapse (match &self (fractal-pruned $a $r $d)
+   (collapse (match &state (fractal-pruned $a $r $d)
      (pruning-record $a $r $d))))
 
 (= (all-pruning-records-with-depth)
-   (collapse (match &self (fractal-pruned-at $a $depth $r $d)
+   (collapse (match &state (fractal-pruned-at $a $depth $r $d)
      (pruning-record $a $depth $r $d))))
 
 ; Clear pruning records (called at start of each planning cycle)
 (= (clear-fractal-pruning-records!)
    (let* (
-     ($old1 (collapse (match &self (fractal-pruned $a $r $d)
+     ($old1 (collapse (match &state (fractal-pruned $a $r $d)
                         (fractal-pruned $a $r $d))))
-     ($old2 (collapse (match &self (fractal-pruned-at $a $dp $r $d)
+     ($old2 (collapse (match &state (fractal-pruned-at $a $dp $r $d)
                         (fractal-pruned-at $a $dp $r $d))))
      ($c1 (remove-all-listed $old1))
      ($c2 (remove-all-listed $old2))
@@ -433,7 +429,7 @@
 
 (= (remove-all-listed ()) done)
 (= (remove-all-listed ($a . $rest))
-   (sequential (remove-atom &self $a) (remove-all-listed $rest)))
+   (sequential (remove-atom &state $a) (remove-all-listed $rest)))
 
 
 ; =============================================================================
