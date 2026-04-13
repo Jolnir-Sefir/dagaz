@@ -82,10 +82,10 @@
 (= (normalize-target $target)
    (if (is-declared-primitive? $target)
        $target
-       (let $is-a (collapse (match &self (obs-grounding $target is-a $type) $type))
+       (let $is-a (collapse (match &state (obs-grounding $target is-a $type) $type))
          (if (not (== $is-a ()))
              (list-head $is-a)
-             (let $concept-is-a (collapse (match &self (concept-ground $target is-a $type) $type))
+             (let $concept-is-a (collapse (match &state (concept-ground $target is-a $type) $type))
                (if (not (== $concept-is-a ()))
                    (list-head $concept-is-a)
                    unknown))))))
@@ -95,11 +95,11 @@
    (let* (
      ; From obs-grounding
      ($obs-links (collapse
-       (match &self (obs-grounding $atom $rel $target)
+       (match &state (obs-grounding $atom $rel $target)
          (sig-rel $rel (normalize-target $target)))))
      ; From concept-ground
      ($concept-links (collapse
-       (match &self (concept-ground $atom $rel $target)
+       (match &state (concept-ground $atom $rel $target)
          (sig-rel $rel (normalize-target $target)))))
    )
    (list-append $obs-links $concept-links)))
@@ -109,11 +109,11 @@
    (let* (
      ; Outgoing passive models (atom is cause)
      ($outgoing (collapse
-       (match &self (passive-model $atom $effect $lag $weight $type)
+       (match &state (passive-model $atom $effect $lag $weight $type)
          (sig-rel (causal-out $type) (normalize-target $effect)))))
      ; Incoming passive models (atom is effect)
      ($incoming (collapse
-       (match &self (passive-model $cause $atom $lag $weight $type)
+       (match &state (passive-model $cause $atom $lag $weight $type)
          (sig-rel (causal-in $type) (normalize-target $cause)))))
    )
    (list-append $outgoing $incoming)))
@@ -122,11 +122,11 @@
 (= (topological-signature $atom)
    (let* (
      ($out-degree (length (collapse
-       (match &self (passive-model $atom $e $l $w $t) $e))))
+       (match &state (passive-model $atom $e $l $w $t) $e))))
      ($in-degree (length (collapse
-       (match &self (passive-model $c $atom $l $w $t) $c))))
+       (match &state (passive-model $c $atom $l $w $t) $c))))
      ($clusters (collapse
-       (match &self (latent-member $lv $atom $w) $lv)))
+       (match &state (latent-member $lv $atom $w) $lv)))
    )
    (topo-sig $out-degree $in-degree (length $clusters))))
 
@@ -244,28 +244,28 @@
 (analogy-budget-this-cycle 0)
 
 (= (reset-analogy-budget!)
-   (let $old (match &self (analogy-budget-this-cycle $n) $n)
+   (let $old (match &state (analogy-budget-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (analogy-budget-this-cycle $old))
-       (add-atom &self (analogy-budget-this-cycle 0))
+       (remove-atom &state (analogy-budget-this-cycle $old))
+       (add-atom &state (analogy-budget-this-cycle 0))
        done)))
 
 (= (analogy-budget-available?)
-   (let $used (match &self (analogy-budget-this-cycle $n) $n)
+   (let $used (match &state (analogy-budget-this-cycle $n) $n)
      (< $used (get-config analogy-max-per-cycle))))
 
 (= (use-analogy-budget!)
-   (let $old (match &self (analogy-budget-this-cycle $n) $n)
+   (let $old (match &state (analogy-budget-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (analogy-budget-this-cycle $old))
-       (add-atom &self (analogy-budget-this-cycle (+ $old 1)))
+       (remove-atom &state (analogy-budget-this-cycle $old))
+       (add-atom &state (analogy-budget-this-cycle (+ $old 1)))
        done)))
 
 ; Check if an analogy mapping already exists
 (= (has-analogy? $source $target)
-   (let $r (collapse (match &self (analogy-map $source $target $s $c) True))
+   (let $r (collapse (match &state (analogy-map $source $target $s $c) True))
      (if (== $r ())
-         (let $r2 (collapse (match &self (analogy-map $target $source $s $c) True))
+         (let $r2 (collapse (match &state (analogy-map $target $source $s $c) True))
            (if (== $r2 ()) False True))
          True)))
 
@@ -275,34 +275,34 @@
 ; For a chunked action: compare against other actions
 (= (analogy-candidates-for $atom)
    (let* (
-     ($is-latent (collapse (match &self (latent-variable $atom) True)))
-     ($is-promoted (collapse (match &self (promoted-observable $atom $s $c) True)))
-     ($is-chunked (collapse (match &self (chunked-action $atom $c) True)))
+     ($is-latent (collapse (match &state (latent-variable $atom) True)))
+     ($is-promoted (collapse (match &state (promoted-observable $atom $s $c) True)))
+     ($is-chunked (collapse (match &state (chunked-action $atom $c) True)))
    )
    (if (not (== $is-latent ()))
        ; Latent: compare to other latents and grounded observables
        (let* (
          ($other-latents (collapse
-           (match &self (latent-variable $other)
+           (match &state (latent-variable $other)
              (if (not (== $other $atom)) $other (empty)))))
          ($core-obs (collapse
-           (match &self (obs-grounding $obs $r $t)
+           (match &state (obs-grounding $obs $r $t)
              (if (not (== $obs $atom)) $obs (empty)))))
        )
        (list-append $other-latents (unique-list $core-obs)))
    (if (not (== $is-promoted ()))
        ; Promoted: compare to other observables
        (collapse
-         (match &self (obs-grounding $obs $r $t)
+         (match &state (obs-grounding $obs $r $t)
            (if (not (== $obs $atom)) $obs (empty))))
    (if (not (== $is-chunked ()))
        ; Chunked: compare to other actions
        (collapse
-         (match &self (action-grounding $act $r $t)
+         (match &state (action-grounding $act $r $t)
            (if (not (== $act $atom)) $act (empty))))
        ; Default: compare to everything with grounding
        (collapse
-         (match &self (obs-grounding $obs $r $t) $obs)))))))
+         (match &state (obs-grounding $obs $r $t) $obs)))))))
 
 ; Deduplicate a list
 (= (unique-list ()) ())
@@ -335,8 +335,8 @@
 ; Create an analogy mapping between source and target
 (= (create-analogy-map! $source $target $score $cycle)
    (sequential
-     (add-atom &self (analogy-map $source $target $score $cycle))
-     (add-atom &self (analogy-energy $source $target
+     (add-atom &state (analogy-map $source $target $score $cycle))
+     (add-atom &state (analogy-energy $source $target
                        (get-config analogy-initial-energy)))
      (use-analogy-budget!)
      (analogy-created $source $target $score)))
@@ -358,7 +358,7 @@
 ; Attempt causal transfer from source to target
 (= (attempt-causal-transfer! $source $target $cycle)
    (let $source-models (collapse
-     (match &self (passive-model $source $effect $lag $weight $type)
+     (match &state (passive-model $source $effect $lag $weight $type)
        (causal-info $effect $lag $weight $type)))
    (transfer-causal-list! $source $target $source-models $cycle)))
 
@@ -367,18 +367,18 @@
      ((causal-info $effect $lag $weight $type) . $rest) $cycle)
    (sequential
      ; Check if target already has a model for this effect
-     (let $existing (collapse (match &self (passive-model $target $effect $l $w $t) True))
+     (let $existing (collapse (match &state (passive-model $target $effect $l $w $t) True))
        (if (== $existing ())
            ; No existing model — transfer it as a weak hypothesis
            (let $transfer-weight (* $weight (get-config analogy-transfer-weight))
              (sequential
-               (add-atom &self (passive-model $target $effect $lag $transfer-weight $type))
-               (add-atom &self (metabolic-energy passive-model $target $effect
+               (add-atom &state (passive-model $target $effect $lag $transfer-weight $type))
+               (add-atom &state (metabolic-energy passive-model $target $effect
                                  (get-config metabolic-initial-energy)))
-               (add-atom &self (created-at passive-model $target $effect $cycle))
-               (add-atom &self (prediction-stats passive-model $target $effect 0 0))
+               (add-atom &state (created-at passive-model $target $effect $cycle))
+               (add-atom &state (prediction-stats passive-model $target $effect 0 0))
                ; Audit trail
-               (add-atom &self (analogy-transfer $source $target causal
+               (add-atom &state (analogy-transfer $source $target causal
                                  (transfer-id $target $effect)))
                (causal-transferred $source $target $effect)))
            done))
@@ -387,7 +387,7 @@
 ; Attempt grounding transfer from source to target
 (= (attempt-grounding-transfer! $source $target $cycle)
    (let $source-groundings (collapse
-     (match &self (obs-grounding $source $rel $tgt)
+     (match &state (obs-grounding $source $rel $tgt)
        ($rel $tgt)))
    (transfer-grounding-list! $source $target $source-groundings $cycle)))
 
@@ -395,11 +395,11 @@
 (= (transfer-grounding-list! $source $target (($rel $tgt) . $rest) $cycle)
    (sequential
      ; Check if target already has this grounding relation
-     (let $existing (collapse (match &self (obs-grounding $target $rel $any) True))
+     (let $existing (collapse (match &state (obs-grounding $target $rel $any) True))
        (if (== $existing ())
            (sequential
-             (add-atom &self (obs-grounding $target $rel $tgt))
-             (add-atom &self (analogy-transfer $source $target grounding
+             (add-atom &state (obs-grounding $target $rel $tgt))
+             (add-atom &state (analogy-transfer $source $target grounding
                                (transfer-id $target $rel)))
              (grounding-transferred $source $target $rel $tgt))
            done))
@@ -427,39 +427,39 @@
 (blend-counter 0)
 
 (= (next-blend-name!)
-   (let $n (match &self (blend-counter $c) $c)
+   (let $n (match &state (blend-counter $c) $c)
      (let $new (+ $n 1)
        (sequential
-         (remove-atom &self (blend-counter $n))
-         (add-atom &self (blend-counter $new))
+         (remove-atom &state (blend-counter $n))
+         (add-atom &state (blend-counter $new))
          (blend-name $new)))))
 
 ; Blend budget tracking
 (blend-budget-this-cycle 0)
 
 (= (reset-blend-budget!)
-   (let $old (match &self (blend-budget-this-cycle $n) $n)
+   (let $old (match &state (blend-budget-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (blend-budget-this-cycle $old))
-       (add-atom &self (blend-budget-this-cycle 0))
+       (remove-atom &state (blend-budget-this-cycle $old))
+       (add-atom &state (blend-budget-this-cycle 0))
        done)))
 
 (= (blend-budget-available?)
-   (let $used (match &self (blend-budget-this-cycle $n) $n)
+   (let $used (match &state (blend-budget-this-cycle $n) $n)
      (< $used (get-config blend-max-per-cycle))))
 
 (= (use-blend-budget!)
-   (let $old (match &self (blend-budget-this-cycle $n) $n)
+   (let $old (match &state (blend-budget-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (blend-budget-this-cycle $old))
-       (add-atom &self (blend-budget-this-cycle (+ $old 1)))
+       (remove-atom &state (blend-budget-this-cycle $old))
+       (add-atom &state (blend-budget-this-cycle (+ $old 1)))
        done)))
 
 ; Check if a blend already exists for these parents
 (= (has-blend? $a $b)
-   (let $r (collapse (match &self (concept-blend $name $a $b $c) True))
+   (let $r (collapse (match &state (concept-blend $name $a $b $c) True))
      (if (== $r ())
-         (let $r2 (collapse (match &self (concept-blend $name $b $a $c) True))
+         (let $r2 (collapse (match &state (concept-blend $name $b $a $c) True))
            (if (== $r2 ()) False True))
          True)))
 
@@ -468,7 +468,7 @@
    (let $r (collapse (match &state (belief $atom $val $prec) $prec))
      (if (== $r ())
          ; No direct belief — check if it's a concept with bound observables
-         (let $bound (collapse (match &self (concept-ground $atom bound-to $obs) $obs))
+         (let $bound (collapse (match &state (concept-ground $atom bound-to $obs) $obs))
            (not (== $bound ())))
          ; Has belief — check precision
          (> (list-head $r) 0.2))))
@@ -497,8 +497,8 @@
 
      ; Register the blend
      ($registered (sequential
-       (add-atom &self (concept-blend $name $parent-a $parent-b $cycle))
-       (add-atom &self (blend-energy $name (get-config blend-initial-energy)))
+       (add-atom &state (concept-blend $name $parent-a $parent-b $cycle))
+       (add-atom &state (blend-energy $name (get-config blend-initial-energy)))
        done))
 
      ($budget (use-blend-budget!))
@@ -508,9 +508,9 @@
 ; Collect all grounding relations for an atom (obs-grounding + concept-ground)
 (= (collect-all-relations $atom)
    (let* (
-     ($obs (collapse (match &self (obs-grounding $atom $rel $target)
+     ($obs (collapse (match &state (obs-grounding $atom $rel $target)
                        ($rel $target))))
-     ($concept (collapse (match &self (concept-ground $atom $rel $target)
+     ($concept (collapse (match &state (concept-ground $atom $rel $target)
                            ($rel $target))))
    )
    (list-append $obs $concept)))
@@ -519,8 +519,8 @@
 (= (inherit-relations! $blend () $parent) done)
 (= (inherit-relations! $blend (($rel $target) . $rest) $parent)
    (sequential
-     (add-atom &self (concept-ground $blend $rel $target))
-     (add-atom &self (blend-origin $blend $rel $target $parent))
+     (add-atom &state (concept-ground $blend $rel $target))
+     (add-atom &state (blend-origin $blend $rel $target $parent))
      (inherit-relations! $blend $rest $parent)))
 
 ; Inherit only relations not already present (from other parent)
@@ -529,8 +529,8 @@
    (sequential
      (if (not (list-contains? ($rel $target) $existing))
          (sequential
-           (add-atom &self (concept-ground $blend $rel $target))
-           (add-atom &self (blend-origin $blend $rel $target $parent)))
+           (add-atom &state (concept-ground $blend $rel $target))
+           (add-atom &state (blend-origin $blend $rel $target $parent)))
          done)
      (inherit-unique-relations! $blend $rest $parent $existing)))
 
@@ -544,7 +544,7 @@
      ; Check if parent B has the same relation but with an opposing target
      (let $conflicts (find-conflicts $rel $target-a $rels-b)
        (if (not (== $conflicts ()))
-           (add-atom &self (blend-tension $blend ($rel $target-a (list-head $conflicts))))
+           (add-atom &state (blend-tension $blend ($rel $target-a (list-head $conflicts))))
            done))
      (check-tension-pairs! $blend $rest $rels-b)))
 
@@ -569,7 +569,7 @@
 ; Check all existing analogies for blend potential
 (= (check-blend-triggers! $cycle)
    (let $analogies (collapse
-     (match &self (analogy-map $source $target $score $c)
+     (match &state (analogy-map $source $target $score $c)
        (if (>= $score (get-config blend-similarity-threshold))
            (blend-candidate $source $target $score)
            (empty))))
@@ -594,15 +594,15 @@
 ; --- Analogy Energy ---
 
 (= (get-analogy-energy $source $target)
-   (let $r (match &self (analogy-energy $source $target $e) $e)
+   (let $r (match &state (analogy-energy $source $target $e) $e)
      (if (== $r ()) 0.0 $r)))
 
 (= (set-analogy-energy! $source $target $energy)
-   (let $old (collapse (match &self (analogy-energy $source $target $e)
+   (let $old (collapse (match &state (analogy-energy $source $target $e)
                                     (analogy-energy $source $target $e)))
      (sequential
        (remove-atom-list-safe! $old)
-       (add-atom &self (analogy-energy $source $target
+       (add-atom &state (analogy-energy $source $target
                          (clamp $energy 0.0 (get-config metabolic-energy-cap))))
        done)))
 
@@ -619,15 +619,15 @@
 ; --- Blend Energy ---
 
 (= (get-blend-energy $name)
-   (let $r (match &self (blend-energy $name $e) $e)
+   (let $r (match &state (blend-energy $name $e) $e)
      (if (== $r ()) 0.0 $r)))
 
 (= (set-blend-energy! $name $energy)
-   (let $old (collapse (match &self (blend-energy $name $e)
+   (let $old (collapse (match &state (blend-energy $name $e)
                                     (blend-energy $name $e)))
      (sequential
        (remove-atom-list-safe! $old)
-       (add-atom &self (blend-energy $name
+       (add-atom &state (blend-energy $name
                          (clamp $energy 0.0 (get-config metabolic-energy-cap))))
        done)))
 
@@ -644,7 +644,7 @@
 ; --- Metabolic Step ---
 
 (= (drain-all-analogies!)
-   (let $maps (collapse (match &self (analogy-map $s $t $sc $c) ($s $t)))
+   (let $maps (collapse (match &state (analogy-map $s $t $sc $c) ($s $t)))
      (drain-analogy-list! $maps)))
 
 (= (drain-analogy-list! ()) done)
@@ -654,7 +654,7 @@
      (drain-analogy-list! $rest)))
 
 (= (drain-all-blends!)
-   (let $blends (collapse (match &self (concept-blend $name $a $b $c) $name))
+   (let $blends (collapse (match &state (concept-blend $name $a $b $c) $name))
      (drain-blend-list! $blends)))
 
 (= (drain-blend-list! ()) done)
@@ -666,7 +666,7 @@
 ; --- Pruning ---
 
 (= (prune-dead-analogies! $cycle)
-   (let $maps (collapse (match &self (analogy-map $s $t $sc $c) ($s $t $sc $c)))
+   (let $maps (collapse (match &state (analogy-map $s $t $sc $c) ($s $t $sc $c)))
      (prune-analogy-list! $maps $cycle)))
 
 (= (prune-analogy-list! () $cycle) done)
@@ -680,23 +680,23 @@
 (= (remove-analogy! $source $target $cycle)
    (let* (
      ; Remove map and energy
-     ($map (collapse (match &self (analogy-map $source $target $sc $c)
+     ($map (collapse (match &state (analogy-map $source $target $sc $c)
                                   (analogy-map $source $target $sc $c))))
      ($map-removed (remove-atom-list-safe! $map))
-     ($energy (collapse (match &self (analogy-energy $source $target $e)
+     ($energy (collapse (match &state (analogy-energy $source $target $e)
                                      (analogy-energy $source $target $e))))
      ($energy-removed (remove-atom-list-safe! $energy))
      ; Remove transfer records (transferred hypotheses live independently)
-     ($transfers (collapse (match &self (analogy-transfer $source $target $type $id)
+     ($transfers (collapse (match &state (analogy-transfer $source $target $type $id)
                                         (analogy-transfer $source $target $type $id))))
      ($transfers-removed (remove-atom-list-safe! $transfers))
      ; Audit
-     ($log (add-atom &self (analogy-pruned-log $source $target $cycle)))
+     ($log (add-atom &state (analogy-pruned-log $source $target $cycle)))
    )
    (analogy-removed $source $target $cycle)))
 
 (= (prune-dead-blends! $cycle)
-   (let $blends (collapse (match &self (concept-blend $name $a $b $c) $name))
+   (let $blends (collapse (match &state (concept-blend $name $a $b $c) $name))
      (prune-blend-list! $blends $cycle)))
 
 (= (prune-blend-list! () $cycle) done)
@@ -711,27 +711,27 @@
 (= (disassemble-blend! $name $cycle)
    (let* (
      ; Remove concept-ground atoms
-     ($grounds (collapse (match &self (concept-ground $name $r $t)
+     ($grounds (collapse (match &state (concept-ground $name $r $t)
                                       (concept-ground $name $r $t))))
      ($grounds-removed (remove-atom-list-safe! $grounds))
      ; Remove blend-origin audit trail
-     ($origins (collapse (match &self (blend-origin $name $r $t $p)
+     ($origins (collapse (match &state (blend-origin $name $r $t $p)
                                       (blend-origin $name $r $t $p))))
      ($origins-removed (remove-atom-list-safe! $origins))
      ; Remove tensions
-     ($tensions (collapse (match &self (blend-tension $name $x)
+     ($tensions (collapse (match &state (blend-tension $name $x)
                                        (blend-tension $name $x))))
      ($tensions-removed (remove-atom-list-safe! $tensions))
      ; Remove blend registration
-     ($blend-reg (collapse (match &self (concept-blend $name $a $b $c)
+     ($blend-reg (collapse (match &state (concept-blend $name $a $b $c)
                                         (concept-blend $name $a $b $c))))
      ($reg-removed (remove-atom-list-safe! $blend-reg))
      ; Remove energy
-     ($energy (collapse (match &self (blend-energy $name $e)
+     ($energy (collapse (match &state (blend-energy $name $e)
                                      (blend-energy $name $e))))
      ($energy-removed (remove-atom-list-safe! $energy))
      ; Audit
-     ($log (add-atom &self (blend-pruned-log $name $cycle)))
+     ($log (add-atom &state (blend-pruned-log $name $cycle)))
    )
    (blend-disassembled $name $cycle)))
 
@@ -748,7 +748,7 @@
 
 ; Reward blend when it participates in successful communication or prediction
 (= (reward-blend! $name)
-   (let $r (collapse (match &self (concept-blend $name $a $b $c) True))
+   (let $r (collapse (match &state (concept-blend $name $a $b $c) True))
      (if (not (== $r ()))
          (boost-blend-energy! $name)
          done)))
@@ -769,19 +769,19 @@
 
      ; 1. Detect analogies for recently created learned atoms
      (let $new-latents (collapse
-       (match &self (created-at latent-var $name $cycle)
+       (match &state (created-at latent-var $name $cycle)
          (if (== $cycle $current-cycle) $name (empty))))
      (detect-analogies-batch! $new-latents $current-cycle))
 
      ; 2. Also check promoted observables and chunked actions
      (let $new-promoted (collapse
-       (match &self (promoted-observable $name $src $cycle)
+       (match &state (promoted-observable $name $src $cycle)
          (if (== $cycle $current-cycle) $name (empty))))
      (detect-analogies-batch! $new-promoted $current-cycle))
 
      ; 3. Run transfers for new analogies
      (let $new-analogies (collapse
-       (match &self (analogy-map $s $t $sc $c)
+       (match &state (analogy-map $s $t $sc $c)
          (if (== $c $current-cycle) ($s $t) (empty))))
      (run-transfers-batch! $new-analogies $current-cycle))
 
@@ -818,10 +818,10 @@
 ; Summary of all analogies
 (= (analogy-summary)
    (let* (
-     ($maps (collapse (match &self (analogy-map $s $t $sc $c)
+     ($maps (collapse (match &state (analogy-map $s $t $sc $c)
        (analogy-info $s $t $sc (get-analogy-energy $s $t)))))
      ($n-maps (length $maps))
-     ($transfers (collapse (match &self (analogy-transfer $s $t $type $id)
+     ($transfers (collapse (match &state (analogy-transfer $s $t $type $id)
        (transfer-info $s $t $type))))
      ($n-transfers (length $transfers))
    )
@@ -833,11 +833,11 @@
 ; Summary of all blends
 (= (blend-summary)
    (let $blends (collapse
-     (match &self (concept-blend $name $a $b $c)
+     (match &state (concept-blend $name $a $b $c)
        (let* (
          ($energy (get-blend-energy $name))
-         ($rels (collapse (match &self (concept-ground $name $r $t) ($r $t))))
-         ($tensions (collapse (match &self (blend-tension $name $x) $x)))
+         ($rels (collapse (match &state (concept-ground $name $r $t) ($r $t))))
+         ($tensions (collapse (match &state (blend-tension $name $x) $x)))
        )
        (blend-info $name $a $b $energy (length $rels) (length $tensions)))))
    (blend-report
@@ -847,11 +847,11 @@
 ; Detail for a specific blend
 (= (blend-detail $name)
    (let* (
-     ($parents (collapse (match &self (concept-blend $name $a $b $c) ($a $b))))
+     ($parents (collapse (match &state (concept-blend $name $a $b $c) ($a $b))))
      ($energy (get-blend-energy $name))
-     ($rels (collapse (match &self (concept-ground $name $r $t) ($r $t))))
-     ($origins (collapse (match &self (blend-origin $name $r $t $p) ($r $t $p))))
-     ($tensions (collapse (match &self (blend-tension $name $x) $x)))
+     ($rels (collapse (match &state (concept-ground $name $r $t) ($r $t))))
+     ($origins (collapse (match &state (blend-origin $name $r $t $p) ($r $t $p))))
+     ($tensions (collapse (match &state (blend-tension $name $x) $x)))
    )
    (blend-detail-report
      (name $name)
@@ -864,9 +864,9 @@
 ; Detail for a specific analogy
 (= (analogy-detail $source $target)
    (let* (
-     ($score (match &self (analogy-map $source $target $s $c) $s))
+     ($score (match &state (analogy-map $source $target $s $c) $s))
      ($energy (get-analogy-energy $source $target))
-     ($transfers (collapse (match &self
+     ($transfers (collapse (match &state
        (analogy-transfer $source $target $type $id)
        (transfer-info $type $id))))
      ($sig-a (semantic-signature $source))
