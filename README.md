@@ -2,7 +2,7 @@
 
 An architecture for artificial general intelligence — in the sense defined by [Goertzel (2007)](https://link.springer.com/book/10.1007/978-3-540-68677-4): domain-general, transfer-capable, and representation-learning — built on Active Inference in MeTTa.
 
-One optimization principle — minimize Expected Free Energy — drives perception, action, learning, self-knowledge, and conversation. No mode switches, no scripted behaviors. 22 MeTTa modules, ~12,200 lines.
+One optimization principle — minimize Expected Free Energy — drives perception, action, learning, self-knowledge, and conversation. No mode switches, no scripted behaviors. 23 MeTTa modules, ~12,600 lines.
 
 **Paper:** [Unified Cognition from a Single Optimization Principle: Active Inference in MeTTa with Emergent Reasoning, Planning, and Self-Knowledge](https://doi.org/10.6084/m9.figshare.31742059)
 
@@ -12,7 +12,7 @@ One optimization principle — minimize Expected Free Energy — drives percepti
 
 The system is validated at three tiers:
 
-1. **Tier 1 — MeTTa source (canonical).** 22 modules written against correct MeTTa syntax per the language specification. Native Hyperon execution is blocked by two bugs in 0.2.10 (cons-cell pattern matching, trie index crash at scale). The canonical files are unpatched — the bugs are in the runtime, not the architecture.
+1. **Tier 1 — MeTTa source (canonical).** 23 modules written against correct MeTTa syntax per the language specification. Native Hyperon execution is blocked by two bugs in 0.2.10 (cons-cell pattern matching, trie index crash at scale). The canonical files are unpatched — the bugs are in the runtime, not the architecture.
 
 2. **Tier 2 — Executable Python specifications.** 1:1 logic translations encoding identical formulas, thresholds, and metabolic dynamics as the MeTTa modules. Zero external dependencies. All passing. These prove the *dynamics* work: emergent behaviors, correct orderings, phase transitions.
 
@@ -62,6 +62,12 @@ Temporal planning uses adaptive beam search inspired by Renormalization Group fl
 | `semantic_grounding.metta` | Observable → primitive chains |
 | `action_grounding.metta` | Action → primitive chains |
 | `analogy_blending.metta` | Cross-domain structural mapping |
+
+### Domain Configuration (MeTTa)
+
+| Module | Role |
+|--------|------|
+| `domain.metta` | Declarative domain definition — actions, observables, preferences, viability bounds, action models, costs. Edit this file to configure a new scenario. Loaded last; overrides core defaults. |
 
 ### Runtime & Orchestration
 
@@ -143,7 +149,7 @@ Start with `ARCHITECTURE.md` for the system overview.
 - **Fractal planning**: 52× reduction in evaluations (depth 7, beam 2) compared to exhaustive search, with correct action selection across all test scenarios.
 - **Scalable causal discovery**: LSH optimization achieves 19.4× pair reduction at 1,000 observables with zero significant false negatives.
 - **Robust metabolic economy**: 67% of parameter space produces healthy behavior, governed by a single dimensionless ratio.
-- **End-to-end execution**: The Python evaluator loads all 22 MeTTa modules, computes EFE producing correct numerical results, derives affect from prediction errors, runs complete cognitive cycles, and connects to a local LLM for conversational interaction.
+- **End-to-end execution**: The Python evaluator loads all 23 MeTTa modules, computes EFE producing correct numerical results, derives affect from prediction errors, runs complete cognitive cycles, and connects to a local LLM for conversational interaction.
 
 ## Requirements
 
