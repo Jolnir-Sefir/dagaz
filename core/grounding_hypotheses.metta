@@ -61,21 +61,21 @@
 (grounding-budget-this-cycle 0)
 
 (= (reset-grounding-budget!)
-   (let $old (match &self (grounding-budget-this-cycle $n) $n)
+   (let $old (match &state (grounding-budget-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (grounding-budget-this-cycle $old))
-       (add-atom &self (grounding-budget-this-cycle 0))
+       (remove-atom &state (grounding-budget-this-cycle $old))
+       (add-atom &state (grounding-budget-this-cycle 0))
        done)))
 
 (= (grounding-budget-available?)
-   (let $used (match &self (grounding-budget-this-cycle $n) $n)
+   (let $used (match &state (grounding-budget-this-cycle $n) $n)
      (< $used (get-config grounding-max-per-cycle))))
 
 (= (use-grounding-budget!)
-   (let $old (match &self (grounding-budget-this-cycle $n) $n)
+   (let $old (match &state (grounding-budget-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (grounding-budget-this-cycle $old))
-       (add-atom &self (grounding-budget-this-cycle (+ $old 1)))
+       (remove-atom &state (grounding-budget-this-cycle $old))
+       (add-atom &state (grounding-budget-this-cycle (+ $old 1)))
        done)))
 
 
@@ -84,15 +84,15 @@
 ; =============================================================================
 
 (= (get-grounding-energy $target)
-   (let $r (match &self (grounding-energy $target $e) $e)
+   (let $r (match &state (grounding-energy $target $e) $e)
      (if (== $r ()) 0.0 $r)))
 
 (= (set-grounding-energy! $target $energy)
-   (let $old (collapse (match &self (grounding-energy $target $e)
+   (let $old (collapse (match &state (grounding-energy $target $e)
                                     (grounding-energy $target $e)))
      (sequential
        (remove-atom-list-safe! $old)
-       (add-atom &self (grounding-energy $target
+       (add-atom &state (grounding-energy $target
                          (clamp $energy 0.0 (get-config metabolic-energy-cap))))
        done)))
 
@@ -116,47 +116,47 @@
 
 ; Check if an atom has any grounding hypothesis
 (= (has-grounding-hyp? $target)
-   (let $r (collapse (match &self (grounding-hyp $target $gen $cyc) True))
+   (let $r (collapse (match &state (grounding-hyp $target $gen $cyc) True))
      (if (== $r ()) False True)))
 
 ; Check if an atom has grounding from a specific generator
 (= (has-grounding-from? $target $generator)
-   (let $r (collapse (match &self (grounding-hyp $target $generator $cyc) True))
+   (let $r (collapse (match &state (grounding-hyp $target $generator $cyc) True))
      (if (== $r ()) False True)))
 
 ; Get all grounding hypotheses for an atom
 (= (get-groundings-for $target)
-   (collapse (match &self (grounding-hyp $target $gen $cyc)
+   (collapse (match &state (grounding-hyp $target $gen $cyc)
      (grounding-source $gen $cyc))))
 
 ; Get all atoms with grounding hypotheses
 (= (all-grounded-learned-atoms)
-   (collapse (match &self (grounding-hyp $target $gen $cyc) $target)))
+   (collapse (match &state (grounding-hyp $target $gen $cyc) $target)))
 
 ; Register a new grounding hypothesis with metadata
 (= (register-grounding-hyp! $target $generator $cycle)
    (if (has-grounding-from? $target $generator)
        (already-grounded $target $generator)
        (sequential
-         (add-atom &self (grounding-hyp $target $generator $cycle))
+         (add-atom &state (grounding-hyp $target $generator $cycle))
          ; Initialize energy if this is the first grounding for this target
          (if (== (get-grounding-energy $target) 0.0)
              (set-grounding-energy! $target
                (get-config grounding-initial-energy))
              done)
          ; Initialize stats if needed
-         (let $stats (collapse (match &self (grounding-stats $target $t $s) True))
+         (let $stats (collapse (match &state (grounding-stats $target $t $s) True))
            (if (== $stats ())
-               (add-atom &self (grounding-stats $target 0 0))
+               (add-atom &state (grounding-stats $target 0 0))
                done))
          (grounding-registered $target $generator $cycle))))
 
 ; Update grounding stats after a test
 (= (update-grounding-stats! $target $success?)
-   (let ($tests $successes) (match &self (grounding-stats $target $t $s) ($t $s))
+   (let ($tests $successes) (match &state (grounding-stats $target $t $s) ($t $s))
      (sequential
-       (remove-atom &self (grounding-stats $target $tests $successes))
-       (add-atom &self (grounding-stats $target
+       (remove-atom &state (grounding-stats $target $tests $successes))
+       (add-atom &state (grounding-stats $target
                          (+ $tests 1)
                          (+ $successes (if $success? 1 0))))
        done)))
@@ -180,7 +180,7 @@
 
 ; Collect all (rel, target) pairs from a member observable's groundings
 (= (member-groundings $obs)
-   (collapse (match &self (obs-grounding $obs $rel $target) ($rel $target))))
+   (collapse (match &state (obs-grounding $obs $rel $target) ($rel $target))))
 
 ; Collect groundings from all members of a latent variable
 (= (all-member-groundings $lv-name)
@@ -198,7 +198,7 @@
 
 (= (count-matching-members () $rel $target) 0)
 (= (count-matching-members ($obs . $rest) $rel $target)
-   (let $has (collapse (match &self (obs-grounding $obs $rel $target) True))
+   (let $has (collapse (match &state (obs-grounding $obs $rel $target) True))
      (+ (if (== $has ()) 0 1)
         (count-matching-members $rest $rel $target))))
 
@@ -232,14 +232,14 @@
      (sequential
        (if (>= $count $min-count)
            (sequential
-             (add-atom &self (obs-grounding $lv-name $rel $target))
+             (add-atom &state (obs-grounding $lv-name $rel $target))
              done)
            done)
        (emit-inherited-groundings! $lv-name $rest $min-count $cycle))))
 
 ; Finalize: register hypothesis and use budget (called once per latent)
 (= (finalize-inherited-grounding! $lv-name $cycle)
-   (let $emitted (collapse (match &self (obs-grounding $lv-name $rel $target) True))
+   (let $emitted (collapse (match &state (obs-grounding $lv-name $rel $target) True))
      (if (== $emitted ())
          (no-inherited-grounding $lv-name)  ; Intersection was empty
          (sequential
@@ -283,7 +283,7 @@
 ; Get grounded effects of a learned atom (via passive-model, cause→effect)
 (= (grounded-effects-of $learned-atom)
    (collapse
-     (match &self (passive-model $learned-atom $effect $lag $weight $type)
+     (match &state (passive-model $learned-atom $effect $lag $weight $type)
        (if (is-grounded-obs? $effect)
            (causal-effect $effect $type $weight)
            (empty)))))
@@ -291,14 +291,14 @@
 ; Get grounded causes of a learned atom (via passive-model, cause→effect)
 (= (grounded-causes-of $learned-atom)
    (collapse
-     (match &self (passive-model $cause $learned-atom $lag $weight $type)
+     (match &state (passive-model $cause $learned-atom $lag $weight $type)
        (if (is-grounded-obs? $cause)
            (causal-cause $cause $type $weight)
            (empty)))))
 
 ; Check if an observable has declared grounding (not hypothesized)
 (= (is-grounded-obs? $obs)
-   (let $r (collapse (match &self (obs-grounding $obs $rel $target) True))
+   (let $r (collapse (match &state (obs-grounding $obs $rel $target) True))
      (if (== $r ()) False True)))
 
 ; Map causal type to grounding relation
@@ -322,7 +322,7 @@
      (if (and (not (== $energy ())) (>= $energy $min-energy))
          ; Get the effect's primary grounding and map through causal type
          (let $effect-groundings (collapse
-               (match &self (obs-grounding $effect is-a $target) $target))
+               (match &state (obs-grounding $effect is-a $target) $target))
            (emit-behavioral-groundings! $atom (causal-rel $type)
              $effect-groundings))
          done)
@@ -333,9 +333,9 @@
 (= (emit-behavioral-groundings! $atom $rel ($target . $rest))
    (sequential
      ; Don't duplicate existing groundings
-     (let $exists (collapse (match &self (obs-grounding $atom $rel $target) True))
+     (let $exists (collapse (match &state (obs-grounding $atom $rel $target) True))
        (if (== $exists ())
-           (add-atom &self (obs-grounding $atom $rel $target))
+           (add-atom &state (obs-grounding $atom $rel $target))
            done))
      (emit-behavioral-groundings! $atom $rel $rest)))
 
@@ -350,9 +350,9 @@
            ; If belief value is high AND viability pressure is elevated,
            ; the concept might be threat-related
            (if (and (> $val 0.6) (> (get-viability-pressure) 0.3))
-               (let $exists (collapse (match &self (obs-grounding $learned-atom causes danger) True))
+               (let $exists (collapse (match &state (obs-grounding $learned-atom causes danger) True))
                  (if (== $exists ())
-                     (add-atom &self (obs-grounding $learned-atom causes danger))
+                     (add-atom &state (obs-grounding $learned-atom causes danger))
                      done))
                done)))))
 
@@ -369,7 +369,7 @@
      ($gen-viability (generate-viability-grounding! $learned-atom $cycle))
    )
    ; Check if anything was generated
-   (let $new-groundings (collapse (match &self (obs-grounding $learned-atom $r $t) True))
+   (let $new-groundings (collapse (match &state (obs-grounding $learned-atom $r $t) True))
      (if (== $new-groundings ())
          (no-behavioral-grounding $learned-atom)
          (sequential
@@ -417,24 +417,24 @@
 
 ; Get the action sequence for a chunked action
 (= (get-chunk-sequence $chunk-name)
-   (let $r (collapse (match &self (chunked-action-policy $chunk-name $seq) $seq))
+   (let $r (collapse (match &state (chunked-action-policy $chunk-name $seq) $seq))
      (if (== $r ()) () (list-head $r))))
 
 ; Collect the "causes" groundings of an action
 (= (action-causes $action)
-   (collapse (match &self (action-grounding $action causes $target) $target)))
+   (collapse (match &state (action-grounding $action causes $target) $target)))
 
 ; Collect the "enables" groundings of an action
 (= (action-enables $action)
-   (collapse (match &self (action-grounding $action enables $target) $target)))
+   (collapse (match &state (action-grounding $action enables $target) $target)))
 
 ; Collect the "requires" groundings of an action
 (= (action-requires $action)
-   (collapse (match &self (action-grounding $action requires $target) $target)))
+   (collapse (match &state (action-grounding $action requires $target) $target)))
 
 ; Get semantic description of an action (empty string if none)
 (= (action-desc $action)
-   (let $r (collapse (match &self (action-semantic $action $d) $d))
+   (let $r (collapse (match &state (action-semantic $action $d) $d))
      (if (== $r ()) "unknown-action" (list-head $r))))
 
 ; Get the last element of a list
@@ -455,7 +455,7 @@
          (no-sequence-for $chunk-name)
      (let* (
        ; IS-A: a sequence of its components
-       ($is-a-created (add-atom &self
+       ($is-a-created (add-atom &state
          (action-grounding $chunk-name is-a (sequence . $seq))))
 
        ; CAUSES: union of all component effects
@@ -475,7 +475,7 @@
        ; SEMANTIC: compose descriptions
        ($descs (collect-sequence-descs $seq))
        ($composed-desc (join-descriptions $descs))
-       ($desc-created (add-atom &self (action-semantic $chunk-name $composed-desc)))
+       ($desc-created (add-atom &state (action-semantic $chunk-name $composed-desc)))
 
        ; Register and budget
        ($registered (register-grounding-hyp! $chunk-name compositional $cycle))
@@ -512,9 +512,9 @@
 (= (emit-chunk-groundings! $chunk $rel ()) done)
 (= (emit-chunk-groundings! $chunk $rel ($target . $rest))
    (sequential
-     (let $exists (collapse (match &self (action-grounding $chunk $rel $target) True))
+     (let $exists (collapse (match &state (action-grounding $chunk $rel $target) True))
        (if (== $exists ())
-           (add-atom &self (action-grounding $chunk $rel $target))
+           (add-atom &state (action-grounding $chunk $rel $target))
            done))
      (emit-chunk-groundings! $chunk $rel $rest)))
 
@@ -552,11 +552,11 @@
 (= (build-grounding-request $atom)
    (let* (
      ; What are its members? (for latent variables)
-     ($members (collapse (match &self (latent-member $atom $obs $w) $obs)))
+     ($members (collapse (match &state (latent-member $atom $obs $w) $obs)))
 
      ; What are its behavioral effects? (for any learned atom)
      ($effects (collapse
-       (match &self (passive-model $atom $effect $l $w $t)
+       (match &state (passive-model $atom $effect $l $w $t)
          (effect $effect $t))))
 
      ; What is its current belief state?
@@ -583,13 +583,13 @@
               ; Only signal if atom is metabolically healthy
               (not (grounding-energy-depleted? $atom)))
          (let $request (build-grounding-request $atom)
-           (add-atom &self $request))
+           (add-atom &state $request))
          done)
      (signal-request-list! $rest $cycle)))
 
 ; Check if there are pending grounding requests (for orchestrator to query)
 (= (pending-grounding-requests)
-   (collapse (match &self (grounding-request $atom $members $ctx)
+   (collapse (match &state (grounding-request $atom $members $ctx)
      (grounding-request $atom $members $ctx))))
 
 (= (has-pending-grounding-requests?)
@@ -601,13 +601,13 @@
 (= (inject-conversational-grounding! $atom $type $label $cycle)
    (sequential
      ; Create the standard grounding atoms
-     (add-atom &self (obs-grounding $atom is-a $type))
-     (add-atom &self (obs-semantic $atom $label))
+     (add-atom &state (obs-grounding $atom is-a $type))
+     (add-atom &state (obs-semantic $atom $label))
      ; Register hypothesis
      (register-grounding-hyp! $atom conversational $cycle)
      ; Clear the request
      (let $old-requests (collapse
-       (match &self (grounding-request $atom $m $c)
+       (match &state (grounding-request $atom $m $c)
                     (grounding-request $atom $m $c)))
        (remove-atom-list-safe! $old-requests))
      (conversational-grounding-injected $atom $type $label)))
@@ -623,7 +623,7 @@
 
 ; Check if a grounding is still in gestation
 (= (grounding-gestating? $target $current-cycle)
-   (let $created (collapse (match &self (grounding-hyp $target $gen $cyc) $cyc))
+   (let $created (collapse (match &state (grounding-hyp $target $gen $cyc) $cyc))
      (if (== $created ())
          False
          (< (- $current-cycle (list-head $created))
@@ -668,43 +668,43 @@
 (= (remove-grounding! $target $cycle)
    (let* (
      ; Remove obs-grounding atoms
-     ($obs-grnds (collapse (match &self (obs-grounding $target $r $t)
+     ($obs-grnds (collapse (match &state (obs-grounding $target $r $t)
                                         (obs-grounding $target $r $t))))
      ($obs-removed (remove-atom-list-safe! $obs-grnds))
 
      ; Remove action-grounding atoms
-     ($act-grnds (collapse (match &self (action-grounding $target $r $t)
+     ($act-grnds (collapse (match &state (action-grounding $target $r $t)
                                         (action-grounding $target $r $t))))
      ($act-removed (remove-atom-list-safe! $act-grnds))
 
      ; Remove semantic atoms
-     ($obs-sem (collapse (match &self (obs-semantic $target $d)
+     ($obs-sem (collapse (match &state (obs-semantic $target $d)
                                       (obs-semantic $target $d))))
      ($obs-sem-removed (remove-atom-list-safe! $obs-sem))
-     ($act-sem (collapse (match &self (action-semantic $target $d)
+     ($act-sem (collapse (match &state (action-semantic $target $d)
                                       (action-semantic $target $d))))
      ($act-sem-removed (remove-atom-list-safe! $act-sem))
 
      ; Remove hypothesis metadata
-     ($hyps (collapse (match &self (grounding-hyp $target $g $c)
+     ($hyps (collapse (match &state (grounding-hyp $target $g $c)
                                    (grounding-hyp $target $g $c))))
      ($hyps-removed (remove-atom-list-safe! $hyps))
 
      ; Remove energy and stats
-     ($energy (collapse (match &self (grounding-energy $target $e)
+     ($energy (collapse (match &state (grounding-energy $target $e)
                                      (grounding-energy $target $e))))
      ($energy-removed (remove-atom-list-safe! $energy))
-     ($stats (collapse (match &self (grounding-stats $target $t $s)
+     ($stats (collapse (match &state (grounding-stats $target $t $s)
                                     (grounding-stats $target $t $s))))
      ($stats-removed (remove-atom-list-safe! $stats))
 
      ; Remove any pending requests
-     ($reqs (collapse (match &self (grounding-request $target $m $c)
+     ($reqs (collapse (match &state (grounding-request $target $m $c)
                                    (grounding-request $target $m $c))))
      ($reqs-removed (remove-atom-list-safe! $reqs))
 
      ; Audit log
-     ($log (add-atom &self (grounding-pruned-log $target $cycle)))
+     ($log (add-atom &state (grounding-pruned-log $target $cycle)))
    )
    (grounding-removed $target $cycle)))
 
@@ -881,10 +881,10 @@
    (let* (
      ($hyps (get-groundings-for $atom))
      ($energy (get-grounding-energy $atom))
-     ($stats (match &self (grounding-stats $atom $t $s) ($t $s)))
-     ($obs-grnds (collapse (match &self (obs-grounding $atom $r $t) ($r $t))))
-     ($act-grnds (collapse (match &self (action-grounding $atom $r $t) ($r $t))))
-     ($semantics (collapse (match &self (obs-semantic $atom $d) $d)))
+     ($stats (match &state (grounding-stats $atom $t $s) ($t $s)))
+     ($obs-grnds (collapse (match &state (obs-grounding $atom $r $t) ($r $t))))
+     ($act-grnds (collapse (match &state (action-grounding $atom $r $t) ($r $t))))
+     ($semantics (collapse (match &state (obs-semantic $atom $d) $d)))
    )
    (grounding-detail-report
      (atom $atom)
@@ -897,7 +897,7 @@
 
 ; Audit: history of pruned groundings
 (= (grounding-prune-history)
-   (collapse (match &self (grounding-pruned-log $target $cycle)
+   (collapse (match &state (grounding-pruned-log $target $cycle)
      (pruned $target $cycle))))
 
 
