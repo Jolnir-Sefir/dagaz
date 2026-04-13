@@ -47,7 +47,7 @@ EFE(action) = How_Wrong_I'll_Be + Cost - What_I'll_Learn + Am_I_About_To_Die
 
 That's it. Exploration, retreat, investigation, curiosity, self-preservation — they all fall out of this one equation with different inputs. No if/else chains. No mode switches. No "if confused, ask for clarification" rules.
 
-The entire system is 22 modules written in **MeTTa** (a symbolic language you've never seen), running on a **pure Python evaluator** you can actually read. The LLM touches exactly two points: parsing text into observations, and converting structured intents back into text.
+The entire system is 23 modules written in **MeTTa** (a symbolic language you've never seen), running on a **pure Python evaluator** you can actually read. The LLM touches exactly two points: parsing text into observations, and converting structured intents back into text.
 
 ---
 
@@ -348,7 +348,7 @@ orchestrator.py                    dagaz_runtime.py
 │                  │               │  Pure Python MeTTa Evaluator     │
 │  LLM (Ollama)   │               │                                  │
 │  ┌───────────┐  │  observations │  ┌────────────────────────────┐  │
-│  │ Parse     │──┼──────────────→│  │ 22 MeTTa Modules           │  │
+│  │ Parse     │──┼──────────────→│  │ 23 MeTTa Modules           │  │
 │  │ (NL→struct)│ │               │  │                            │  │
 │  └───────────┘  │               │  │  beliefs → errors → affect │  │
 │                  │               │  │       ↓                    │  │
@@ -396,7 +396,7 @@ Known limitation of the Python evaluator. MeTTa's `match` is supposed to be nond
 There is none. Dagaz doesn't learn from a dataset. It learns from live observations during operation. Beliefs start at low precision and update from prediction errors. Structure learning discovers causal links from correlated surprises. This is online learning, not batch training.
 
 **"How do I add domain knowledge?"**
-Add atoms to the state space. Beliefs, preferences, action models, viability bounds — these are all atoms you can add at initialization or inject at runtime. Look at the reef scenario (`environment_reef_scenario_metta.txt`) for a worked example.
+Edit `core/domain.metta`. It's a self-documenting template with six sections: actions, observables, preferences, viability bounds, action models, and action costs. Fill in your declarations, and `!(init-domain!)` processes them at boot time — no changes to any core module needed. The initialization clears core defaults and installs your declarations as the single source of truth. For runtime injection, the `sensor` command in the orchestrator still works. For a more complex worked example, see `game/reef_actions.metta`.
 
 **"Can I use GPT-4 / Claude / Gemini instead of Llama?"**
 Yes — the orchestrator's LLM calls go through a simple HTTP interface. Swap `llm_url` and `llm_model` in the Config dataclass. The MeTTa core doesn't know or care which LLM is doing the perception/verbalization.
@@ -414,6 +414,7 @@ Correct — native MeTTa execution on Hyperon 0.2.10 is blocked by two bugs (con
 | I want to... | Read this |
 |--------------|-----------|
 | See the agent run | `python orchestrator.py --trace-pipeline` |
+| Configure a new domain/scenario | `core/domain.metta` |
 | Understand the math in Python | `benchmarks_test-efe.py` |
 | Read the simplest MeTTa module | `core_beliefs.metta` |
 | Understand the main loop | `core_cycle.metta` |
@@ -436,7 +437,7 @@ The biggest leverage points for contributors right now:
 
 2. **LLM parse quality** — The perception boundary (`orchestrator.py`) is the weakest link. Better prompts, better models, structured output schemas, multi-shot parsing — all would improve the entire system.
 
-3. **New environments** — The reef scenario is the main worked example. Building new scenarios (robot navigation, dialogue systems, game NPCs) would test the architecture's domain-generality claims.
+3. **New environments** — The reef scenario is the main worked example. Building new scenarios (robot navigation, dialogue systems, game NPCs) would test the architecture's domain-generality claims. Start by editing `core/domain.metta` with your scenario's actions, observables, and preferences — the cognitive core adapts automatically.
 
 4. **Hyperon bug fixes** — If you're familiar with the Hyperon/OpenCog codebase, the two blocking bugs (cons-cell pattern matching, trie crash at ~1,664 atoms) are documented in the repo. Fixing either would unlock native MeTTa execution.
 
