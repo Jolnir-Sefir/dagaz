@@ -303,7 +303,7 @@ Define a new action with its action-model (predicted effects on observables), co
 `orchestrator.py` has a `sensor` command for injecting hardware observations. Build a bridge to a real sensor (weather API, system metrics, IoT device). The observations flow through the same pathway as LLM-parsed text.
 
 **Hard — Improve the evaluator:**
-`dagaz_runtime.py` is a 400-line MeTTa interpreter. The biggest known limitation: `match` returns only the first result instead of being nondeterministic. Making `collapse(match ...)` return all results correctly would unlock more of the architecture's potential. This is a pure computer science problem — pattern matching and unification.
+`dagaz_runtime.py` is a ~750-line MeTTa interpreter with nondeterministic evaluation, compound-key indexing, and full `collapse(match ...)` support. Current improvement opportunities: better error reporting (tracing which function or pattern caused a failure), performance profiling for large state spaces, and expanding MeTTa primitive coverage (the interpreter covers what the architecture uses, but not the full language spec).
 
 ---
 
@@ -390,7 +390,7 @@ The trade-off: Dagaz can't handle open-ended natural language reasoning the way 
 ## Common Gotchas
 
 **"Why does `match` only return one result?"**
-Known limitation of the Python evaluator. MeTTa's `match` is supposed to be nondeterministic (return ALL matches). The evaluator returns the first. Use `collapse(match ...)` to get all results as a list. Fixing this properly is an open contribution opportunity.
+By design in the deterministic evaluator path. MeTTa's `match` is nondeterministic, but bare `match` in `eval()` returns the first binding for efficiency — most call sites only need one. Wrap it in `collapse(match ...)` to get all results as a list; this correctly iterates all bindings, including through nested match expressions. The nondeterministic `eval_all()` path handles full nondeterminism for function dispatch as well.
 
 **"Where is the training data?"**
 There is none. Dagaz doesn't learn from a dataset. It learns from live observations during operation. Beliefs start at low precision and update from prediction errors. Structure learning discovers causal links from correlated surprises. This is online learning, not batch training.
@@ -433,7 +433,7 @@ Correct — native MeTTa execution on Hyperon 0.2.10 is blocked by two bugs (con
 
 The biggest leverage points for contributors right now:
 
-1. **Evaluator improvement** — Make `dagaz_runtime.py` handle nondeterministic match correctly. This is a well-defined CS problem: pattern matching with unification over a set of atoms, returning all solutions.
+1. **Evaluator robustness** — `dagaz_runtime.py` now handles nondeterministic match and compound-key indexing. The next frontier: better error diagnostics (which pattern failed and why), performance profiling under large state spaces, and expanding MeTTa primitive coverage beyond what the architecture currently uses.
 
 2. **LLM parse quality** — The perception boundary (`orchestrator.py`) is the weakest link. Better prompts, better models, structured output schemas, multi-shot parsing — all would improve the entire system.
 
