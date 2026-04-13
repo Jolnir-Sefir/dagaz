@@ -59,10 +59,10 @@
 
 ; Reset generation budget at cycle start
 (= (reset-structural-budget!)
-   (let $old (match &self (structural-atoms-this-cycle $n) $n)
+   (let $old (match &state (structural-atoms-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (structural-atoms-this-cycle $old))
-       (add-atom &self (structural-atoms-this-cycle 0))
+       (remove-atom &state (structural-atoms-this-cycle $old))
+       (add-atom &state (structural-atoms-this-cycle 0))
        done)))
 
 ; Compute the adaptive structural budget based on observable count.
@@ -108,17 +108,17 @@
 ; Check if generation budget allows more atoms this cycle
 (= (structural-budget-available?)
    (let* (
-     ($used (match &self (structural-atoms-this-cycle $n) $n))
+     ($used (match &state (structural-atoms-this-cycle $n) $n))
      ($budget (adaptive-structural-budget))
    )
    (< $used $budget)))
 
 ; Increment generation budget
 (= (use-structural-budget!)
-   (let $old (match &self (structural-atoms-this-cycle $n) $n)
+   (let $old (match &state (structural-atoms-this-cycle $n) $n)
      (sequential
-       (remove-atom &self (structural-atoms-this-cycle $old))
-       (add-atom &self (structural-atoms-this-cycle (+ $old 1)))
+       (remove-atom &state (structural-atoms-this-cycle $old))
+       (add-atom &state (structural-atoms-this-cycle (+ $old 1)))
        done)))
 
 
@@ -139,12 +139,12 @@
 
 ; Get suspicion link strength (0.0 if not found)
 (= (get-suspicion-strength $cause $effect $lag)
-   (let $r (match &self (suspicion-link $cause $effect $lag $str $upd) $str)
+   (let $r (match &state (suspicion-link $cause $effect $lag $str $upd) $str)
      (if (== $r ()) 0.0 $r)))
 
 ; Check if suspicion link exists
 (= (has-suspicion-link? $cause $effect $lag)
-   (let $r (collapse (match &self (suspicion-link $cause $effect $lag $s $u) True))
+   (let $r (collapse (match &state (suspicion-link $cause $effect $lag $s $u) True))
      (if (== $r ()) False True)))
 
 ; Create or update a suspicion link
@@ -152,19 +152,19 @@
    (if (has-suspicion-link? $cause $effect $lag)
        ; Update existing
        (let ($old-str $old-upd)
-            (match &self (suspicion-link $cause $effect $lag $s $u) ($s $u))
+            (match &state (suspicion-link $cause $effect $lag $s $u) ($s $u))
          (sequential
-           (remove-atom &self (suspicion-link $cause $effect $lag $old-str $old-upd))
-           (add-atom &self (suspicion-link $cause $effect $lag $new-strength $cycle))
+           (remove-atom &state (suspicion-link $cause $effect $lag $old-str $old-upd))
+           (add-atom &state (suspicion-link $cause $effect $lag $new-strength $cycle))
            (suspicion-updated $cause $effect $lag $old-str $new-strength)))
        ; Create new
        (sequential
-         (add-atom &self (suspicion-link $cause $effect $lag $new-strength $cycle))
+         (add-atom &state (suspicion-link $cause $effect $lag $new-strength $cycle))
          (suspicion-created $cause $effect $lag $new-strength))))
 
 ; Get all suspicion links
 (= (all-suspicion-links)
-   (collapse (match &self (suspicion-link $c $e $l $s $u)
+   (collapse (match &state (suspicion-link $c $e $l $s $u)
      (suspicion-link $c $e $l $s $u))))
 
 
@@ -211,7 +211,7 @@
        (let $cutoff (- $current $window)
          (length
            (collapse
-             (match &self (error-trace $obs $error $surprise $time)
+             (match &state (error-trace $obs $error $surprise $time)
                (if (and (>= $time $cutoff)
                         (is-salient? $surprise $error))
                    $obs
@@ -253,8 +253,8 @@
    (let $window (get-config lookback-window)
      (let $cutoff (- $current-cycle $window)
        (collapse
-         (match &self (error-trace $oa $ea $sa $ta)
-           (match &self (error-trace $ob $eb $sb $tb)
+         (match &state (error-trace $oa $ea $sa $ta)
+           (match &state (error-trace $ob $eb $sb $tb)
              (if (and (not (== $oa $ob))
                       (is-salient? $sa $ea)
                       (is-salient? $sb $eb)
@@ -303,7 +303,7 @@
    (let* (
      ($stability (get-config default-structural-stability))
      ($stale (collapse
-       (match &self (suspicion-link $c $e $l $s $u)
+       (match &state (suspicion-link $c $e $l $s $u)
          (if (< $u $current-cycle)
              (suspicion-link $c $e $l $s $u)
              (empty)))))
@@ -314,8 +314,8 @@
 (= (decay-suspicion-list! ((suspicion-link $c $e $l $s $u) . $rest) $stability $cycle)
    (let $new-s (* $s $stability)
      (sequential
-       (remove-atom &self (suspicion-link $c $e $l $s $u))
-       (add-atom &self (suspicion-link $c $e $l $new-s $cycle))
+       (remove-atom &state (suspicion-link $c $e $l $s $u))
+       (add-atom &state (suspicion-link $c $e $l $new-s $cycle))
        (decay-suspicion-list! $rest $stability $cycle))))
 
 ; Master function: run the full suspicion update for this cycle
@@ -368,16 +368,16 @@
      ($initial-energy (get-config metabolic-initial-energy))
    )
    (sequential
-     (add-atom &self (passive-model $cause $effect $lag $weight $type))
-     (add-atom &self (metabolic-energy passive-model $cause $effect $initial-energy))
-     (add-atom &self (created-at passive-model $cause $effect $cycle))
-     (add-atom &self (prediction-stats passive-model $cause $effect 0 0))
+     (add-atom &state (passive-model $cause $effect $lag $weight $type))
+     (add-atom &state (metabolic-energy passive-model $cause $effect $initial-energy))
+     (add-atom &state (created-at passive-model $cause $effect $cycle))
+     (add-atom &state (prediction-stats passive-model $cause $effect 0 0))
      (use-structural-budget!)
      (passive-model-created $cause $effect $lag $weight $type))))
 
 ; Check if a passive model already exists for this causeÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢effect pair
 (= (has-passive-model? $cause $effect)
-   (let $r (collapse (match &self (passive-model $cause $effect $l $w $t) True))
+   (let $r (collapse (match &state (passive-model $cause $effect $l $w $t) True))
      (if (== $r ()) False True)))
 
 ; Run Phase 1 triggers on all suspicion links
@@ -435,8 +435,8 @@
 ; have sufficient metabolic energy and Aâ†’C doesn't already exist.
 (= (deductive-candidates)
    (collapse
-     (match &self (passive-model $a $b $lag1 $w1 $t1)
-       (match &self (passive-model $b $c $lag2 $w2 $t2)
+     (match &state (passive-model $a $b $lag1 $w1 $t1)
+       (match &state (passive-model $b $c $lag2 $w2 $t2)
          (if (and (not (== $a $c))                    ; no self-loops
                   (not (has-passive-model? $a $c))     ; not already known
                   (not (has-deduction-origin? $a $c))  ; not already deduced (even if pruned)
@@ -455,7 +455,7 @@
 ; Check if a deduction origin marker exists (prevents re-deduction after pruning)
 ; This decays naturally â€” cleared when both source links are still alive
 (= (has-deduction-origin? $cause $effect)
-   (let $r (collapse (match &self (deduction-origin $cause $effect) True))
+   (let $r (collapse (match &state (deduction-origin $cause $effect) True))
      (if (== $r ()) False True)))
 
 ; Compute the type of a deduced link from its sources
@@ -487,14 +487,14 @@
        )
        (sequential
          ; Create the passive model (same schema as empirical)
-         (add-atom &self (passive-model $a $c $combined-lag $combined-weight $combined-type))
-         (add-atom &self (metabolic-energy passive-model $a $c $initial-energy))
-         (add-atom &self (created-at passive-model $a $c $cycle))
-         (add-atom &self (prediction-stats passive-model $a $c 0 0))
+         (add-atom &state (passive-model $a $c $combined-lag $combined-weight $combined-type))
+         (add-atom &state (metabolic-energy passive-model $a $c $initial-energy))
+         (add-atom &state (created-at passive-model $a $c $cycle))
+         (add-atom &state (prediction-stats passive-model $a $c 0 0))
 
          ; Audit trail: record the deductive provenance
-         (add-atom &self (deduction-origin $a $c))
-         (add-atom &self (deduction-source $a $c $b))
+         (add-atom &state (deduction-origin $a $c))
+         (add-atom &state (deduction-source $a $c $b))
 
          ; Budget accounting
          (use-structural-budget!)
@@ -520,7 +520,7 @@
 ; marker so the deduction can be re-attempted if the sources are rediscovered.
 (= (clean-deduction-origins!)
    (let $origins (collapse
-     (match &self (deduction-source $a $c $b)
+     (match &state (deduction-source $a $c $b)
        (if (and (not (has-passive-model? $a $b))
                 (not (has-passive-model? $b $c)))
            (pair $a $c $b)
@@ -530,15 +530,15 @@
 (= (clean-origin-list! ()) done)
 (= (clean-origin-list! ((pair $a $c $b) . $rest))
    (sequential
-     (remove-atom &self (deduction-origin $a $c))
-     (remove-atom &self (deduction-source $a $c $b))
+     (remove-atom &state (deduction-origin $a $c))
+     (remove-atom &state (deduction-source $a $c $b))
      (clean-origin-list! $rest)))
 
 ; Diagnostics: list all deductively generated links
 (= (all-deductive-models)
    (collapse
-     (match &self (deduction-source $a $c $b)
-       (let $model (match &self (passive-model $a $c $l $w $t) (passive-model $a $c $l $w $t))
+     (match &state (deduction-source $a $c $b)
+       (let $model (match &state (passive-model $a $c $l $w $t) (passive-model $a $c $l $w $t))
          (if (== $model ())
              (deduction-pruned $a $c $b)          ; Link was deduced then died
              (deduction-active $a $c $b $model)))))) ; Link alive
@@ -546,7 +546,7 @@
 ; Count of active deductive models
 (= (deductive-model-count)
    (length (collapse
-     (match &self (deduction-origin $a $c) (pair $a $c)))))
+     (match &state (deduction-origin $a $c) (pair $a $c)))))
 
 
 ; =============================================================================
@@ -558,17 +558,17 @@
 
 ; Get all passive models
 (= (all-passive-models)
-   (collapse (match &self (passive-model $c $e $l $w $t)
+   (collapse (match &state (passive-model $c $e $l $w $t)
      (passive-model $c $e $l $w $t))))
 
 ; Get passive models where $obs is the effect
 (= (passive-models-affecting $obs)
-   (collapse (match &self (passive-model $c $obs $l $w $t)
+   (collapse (match &state (passive-model $c $obs $l $w $t)
      (passive-model $c $obs $l $w $t))))
 
 ; Get passive models where $obs is the cause
 (= (passive-models-from $obs)
-   (collapse (match &self (passive-model $obs $e $l $w $t)
+   (collapse (match &state (passive-model $obs $e $l $w $t)
      (passive-model $obs $e $l $w $t))))
 
 ; Count of passive models
@@ -577,11 +577,11 @@
 
 ; Get metabolic energy for a passive model
 (= (get-pm-energy $cause $effect)
-   (match &self (metabolic-energy passive-model $cause $effect $e) $e))
+   (match &state (metabolic-energy passive-model $cause $effect $e) $e))
 
 ; Get creation cycle for a passive model
 (= (get-pm-created $cause $effect)
-   (match &self (created-at passive-model $cause $effect $c) $c))
+   (match &state (created-at passive-model $cause $effect $c) $c))
 
 ; Check if passive model is still gestating
 (= (pm-gestating? $cause $effect $current-cycle)
@@ -619,8 +619,8 @@
 ; Collect all unique observables that participate in causal links
 (= (collect-causal-observables)
    (let* (
-     ($causes (collapse (match &self (passive-model $c $e $l $w $t) $c)))
-     ($effects (collapse (match &self (passive-model $c $e $l $w $t) $e)))
+     ($causes (collapse (match &state (passive-model $c $e $l $w $t) $c)))
+     ($effects (collapse (match &state (passive-model $c $e $l $w $t) $e)))
    )
    (unique-merge $causes $effects)))
 
@@ -643,23 +643,23 @@
 ; Get all causal neighbors of an observable (both directions)
 (= (get-causal-neighbors $obs)
    (let* (
-     ($effects (collapse (match &self (passive-model $obs $e $l $w $t) $e)))
-     ($causes (collapse (match &self (passive-model $c $obs $l $w $t) $c)))
+     ($effects (collapse (match &state (passive-model $obs $e $l $w $t) $e)))
+     ($causes (collapse (match &state (passive-model $c $obs $l $w $t) $c)))
    )
    (unique-merge $effects $causes)))
 
 ; Check if observable is already part of a latent variable
 (= (already-hubbed? $obs)
-   (let $r (collapse (match &self (latent-member $name $obs $w) True))
+   (let $r (collapse (match &state (latent-member $name $obs $w) True))
      (if (== $r ()) False True)))
 
 ; Generate next latent variable name
 (= (next-latent-name!)
-   (let $n (match &self (latent-var-counter $c) $c)
+   (let $n (match &state (latent-var-counter $c) $c)
      (let $new (+ $n 1)
        (sequential
-         (remove-atom &self (latent-var-counter $n))
-         (add-atom &self (latent-var-counter $new))
+         (remove-atom &state (latent-var-counter $n))
+         (add-atom &state (latent-var-counter $new))
          $new))))
 
 ; Run Phase 2 on all high-degree nodes
@@ -723,10 +723,10 @@
 
      ; Create the hub node
      ($create-hub (sequential
-       (add-atom &self (latent-variable $name))
-       (add-atom &self (metabolic-energy latent-var $name $initial-energy))
-       (add-atom &self (created-at latent-var $name $cycle))
-       (add-atom &self (prediction-stats latent-var $name 0 0))
+       (add-atom &state (latent-variable $name))
+       (add-atom &state (metabolic-energy latent-var $name $initial-energy))
+       (add-atom &state (created-at latent-var $name $cycle))
+       (add-atom &state (prediction-stats latent-var $name 0 0))
        done))
 
      ; Create member spokes with weights derived from existing links
@@ -748,16 +748,16 @@
 (= (create-members-list! $name $hub ($obs . $rest))
    (let $weight (derive-latent-weight $hub $obs)
      (sequential
-       (add-atom &self (latent-member $name $obs $weight))
+       (add-atom &state (latent-member $name $obs $weight))
        (create-members-list! $name $hub $rest))))
 
 ; Derive initial weight for a latentÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢member spoke from existing link strength
 (= (derive-latent-weight $hub $obs)
    (if (== $hub $obs)
        0.5  ; hub node gets default weight
-       (let $r (collapse (match &self (passive-model $hub $obs $l $w $t) $w))
+       (let $r (collapse (match &state (passive-model $hub $obs $l $w $t) $w))
          (if (== $r ())
-             (let $r2 (collapse (match &self (passive-model $obs $hub $l $w $t) $w))
+             (let $r2 (collapse (match &state (passive-model $obs $hub $l $w $t) $w))
                (if (== $r2 ()) 0.3 (list-head $r2)))
              (list-head $r)))))
 
@@ -780,15 +780,15 @@
        done))
 
 (= (remove-passive-model! $cause $effect)
-   (match &self (passive-model $cause $effect $lag $weight $type)
+   (match &state (passive-model $cause $effect $lag $weight $type)
      (sequential
-       (remove-atom &self (passive-model $cause $effect $lag $weight $type))
-       (remove-atom &self (metabolic-energy passive-model $cause $effect
+       (remove-atom &state (passive-model $cause $effect $lag $weight $type))
+       (remove-atom &state (metabolic-energy passive-model $cause $effect
                             (get-pm-energy $cause $effect)))
-       (remove-atom &self (created-at passive-model $cause $effect
+       (remove-atom &state (created-at passive-model $cause $effect
                             (get-pm-created $cause $effect)))
-       (let ($p $s) (match &self (prediction-stats passive-model $cause $effect $p $s) ($p $s))
-         (remove-atom &self (prediction-stats passive-model $cause $effect $p $s)))
+       (let ($p $s) (match &state (prediction-stats passive-model $cause $effect $p $s) ($p $s))
+         (remove-atom &state (prediction-stats passive-model $cause $effect $p $s)))
        (passive-model-removed $cause $effect))))
 
 
@@ -798,24 +798,24 @@
 
 ; Get all latent variables
 (= (all-latent-variables)
-   (collapse (match &self (latent-variable $name) $name)))
+   (collapse (match &state (latent-variable $name) $name)))
 
 ; Get members of a latent variable
 (= (get-latent-members $name)
-   (collapse (match &self (latent-member $name $obs $w) $obs)))
+   (collapse (match &state (latent-member $name $obs $w) $obs)))
 
 ; Get weight for a specific member
 (= (get-latent-weight $name $obs)
-   (let $r (match &self (latent-member $name $obs $w) $w)
+   (let $r (match &state (latent-member $name $obs $w) $w)
      (if (== $r ()) 0.0 $r)))
 
 ; Get energy for a latent variable
 (= (get-lv-energy $name)
-   (match &self (metabolic-energy latent-var $name $e) $e))
+   (match &state (metabolic-energy latent-var $name $e) $e))
 
 ; Get creation cycle for a latent variable
 (= (get-lv-created $name)
-   (match &self (created-at latent-var $name $c) $c))
+   (match &state (created-at latent-var $name $c) $c))
 
 ; Check if latent variable is gestating
 (= (lv-gestating? $name $current-cycle)
@@ -856,8 +856,8 @@
    (let $old-energy (get-pm-energy $cause $effect)
      (let $new-energy (- $old-energy (get-config metabolic-rate))
        (sequential
-         (remove-atom &self (metabolic-energy passive-model $cause $effect $old-energy))
-         (add-atom &self (metabolic-energy passive-model $cause $effect $new-energy))
+         (remove-atom &state (metabolic-energy passive-model $cause $effect $old-energy))
+         (add-atom &state (metabolic-energy passive-model $cause $effect $new-energy))
          done))))
 
 ; Drain energy from all non-gestating latent variables
@@ -877,14 +877,14 @@
    (let $old-energy (get-lv-energy $name)
      (let $new-energy (- $old-energy (get-config metabolic-rate))
        (sequential
-         (remove-atom &self (metabolic-energy latent-var $name $old-energy))
-         (add-atom &self (metabolic-energy latent-var $name $new-energy))
+         (remove-atom &state (metabolic-energy latent-var $name $old-energy))
+         (add-atom &state (metabolic-energy latent-var $name $new-energy))
          done))))
 
 ; Prune passive models with energy ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¤ 0
 (= (prune-dead-passive-models!)
    (let $dead (collapse
-     (match &self (metabolic-energy passive-model $c $e $energy)
+     (match &state (metabolic-energy passive-model $c $e $energy)
        (if (<= $energy 0.0)
            (pair $c $e)
            (empty))))
@@ -899,7 +899,7 @@
 ; Prune latent variables with energy ÃƒÂ¢Ã¢â‚¬Â°Ã‚Â¤ 0
 (= (prune-dead-latent-variables!)
    (let $dead (collapse
-     (match &self (metabolic-energy latent-var $name $energy)
+     (match &state (metabolic-energy latent-var $name $energy)
        (if (<= $energy 0.0)
            $name
            (empty))))
@@ -915,27 +915,27 @@
 (= (remove-latent-variable! $name)
    (let* (
      ; Remove member atoms
-     ($members (collapse (match &self (latent-member $name $obs $w)
+     ($members (collapse (match &state (latent-member $name $obs $w)
        (latent-member $name $obs $w))))
      ($rm-members (remove-atom-list! $members))
      ; Remove metabolic energy
      ($energy (get-lv-energy $name))
-     ($rm-energy (remove-atom &self (metabolic-energy latent-var $name $energy)))
+     ($rm-energy (remove-atom &state (metabolic-energy latent-var $name $energy)))
      ; Remove creation time
      ($created (get-lv-created $name))
-     ($rm-created (remove-atom &self (created-at latent-var $name $created)))
+     ($rm-created (remove-atom &state (created-at latent-var $name $created)))
      ; Remove prediction stats
-     (($p $s) (match &self (prediction-stats latent-var $name $p $s) ($p $s)))
-     ($rm-stats (remove-atom &self (prediction-stats latent-var $name $p $s)))
+     (($p $s) (match &state (prediction-stats latent-var $name $p $s) ($p $s)))
+     ($rm-stats (remove-atom &state (prediction-stats latent-var $name $p $s)))
      ; Remove the variable itself
-     ($rm-self (remove-atom &self (latent-variable $name)))
+     ($rm-self (remove-atom &state (latent-variable $name)))
    )
    (latent-variable-removed $name)))
 
 (= (remove-atom-list! ()) done)
 (= (remove-atom-list! ($a . $rest))
    (sequential
-     (remove-atom &self $a)
+     (remove-atom &state $a)
      (remove-atom-list! $rest)))
 
 ; Master metabolic step
@@ -971,15 +971,15 @@
          ($earned (if $correct $boost 0.0))
          ($new-energy (min (+ $old-energy $earned) $cap))
          ; Update prediction stats
-         (($old-p $old-s) (match &self (prediction-stats passive-model $cause $effect $p $s) ($p $s)))
+         (($old-p $old-s) (match &state (prediction-stats passive-model $cause $effect $p $s) ($p $s)))
          ($new-p (+ $old-p 1))
          ($new-s (+ $old-s (if $correct 1 0)))
        )
        (sequential
-         (remove-atom &self (metabolic-energy passive-model $cause $effect $old-energy))
-         (add-atom &self (metabolic-energy passive-model $cause $effect $new-energy))
-         (remove-atom &self (prediction-stats passive-model $cause $effect $old-p $old-s))
-         (add-atom &self (prediction-stats passive-model $cause $effect $new-p $new-s))
+         (remove-atom &state (metabolic-energy passive-model $cause $effect $old-energy))
+         (add-atom &state (metabolic-energy passive-model $cause $effect $new-energy))
+         (remove-atom &state (prediction-stats passive-model $cause $effect $old-p $old-s))
+         (add-atom &state (prediction-stats passive-model $cause $effect $new-p $new-s))
          ; BF: successful predictions earn global capital for abduction
          (if $correct
              (earn-capital! (get-config capital-earn-rate))
@@ -1001,8 +1001,8 @@
        ; Coherent and correct: full reward
        (let $e (get-lv-energy $name)
          (sequential
-           (remove-atom &self (metabolic-energy latent-var $name $e))
-           (add-atom &self (metabolic-energy latent-var $name
+           (remove-atom &state (metabolic-energy latent-var $name $e))
+           (add-atom &state (metabolic-energy latent-var $name
              (min (+ $e (get-config metabolic-boost))
                   (get-config metabolic-energy-cap))))
            (update-lv-stats-success! $name)
@@ -1022,15 +1022,15 @@
          ($correct (is-prediction-correct? $obs $actual-error))
          ($earned (if $correct $boost 0.0))
          ($new-energy (min (+ $old-energy $earned) $cap))
-         (($old-p $old-s) (match &self (prediction-stats latent-var $name $p $s) ($p $s)))
+         (($old-p $old-s) (match &state (prediction-stats latent-var $name $p $s) ($p $s)))
          ($new-p (+ $old-p 1))
          ($new-s (+ $old-s (if $correct 1 0)))
        )
        (sequential
-         (remove-atom &self (metabolic-energy latent-var $name $old-energy))
-         (add-atom &self (metabolic-energy latent-var $name $new-energy))
-         (remove-atom &self (prediction-stats latent-var $name $old-p $old-s))
-         (add-atom &self (prediction-stats latent-var $name $new-p $new-s))
+         (remove-atom &state (metabolic-energy latent-var $name $old-energy))
+         (add-atom &state (metabolic-energy latent-var $name $new-energy))
+         (remove-atom &state (prediction-stats latent-var $name $old-p $old-s))
+         (add-atom &state (prediction-stats latent-var $name $new-p $new-s))
          done))))
 
 ; Collect errors for latent variable members from the error list
@@ -1071,18 +1071,18 @@
 
 ; Update prediction stats (attempt only, no success)
 (= (update-lv-stats-attempt! $name)
-   (match &self (prediction-stats latent-var $name $p $s)
+   (match &state (prediction-stats latent-var $name $p $s)
      (sequential
-       (remove-atom &self (prediction-stats latent-var $name $p $s))
-       (add-atom &self (prediction-stats latent-var $name (+ $p 1) $s))
+       (remove-atom &state (prediction-stats latent-var $name $p $s))
+       (add-atom &state (prediction-stats latent-var $name (+ $p 1) $s))
        done)))
 
 ; Update prediction stats (success)
 (= (update-lv-stats-success! $name)
-   (match &self (prediction-stats latent-var $name $p $s)
+   (match &state (prediction-stats latent-var $name $p $s)
      (sequential
-       (remove-atom &self (prediction-stats latent-var $name $p $s))
-       (add-atom &self (prediction-stats latent-var $name (+ $p 1) (+ $s 1)))
+       (remove-atom &state (prediction-stats latent-var $name $p $s))
+       (add-atom &state (prediction-stats latent-var $name (+ $p 1) (+ $s 1)))
        done)))
 
 ; Reward all structure that predicted a specific observable (v2)
@@ -1093,7 +1093,7 @@
      (let $pms (passive-models-affecting $obs)
        (reward-pm-list! $pms $actual-error $current-cycle))
      ; Reward latent variables where $obs is a member
-     (let $lvs (collapse (match &self (latent-member $name $obs $w) $name))
+     (let $lvs (collapse (match &state (latent-member $name $obs $w) $name))
        (reward-lv-list! $lvs $obs $actual-error $current-cycle))
      done))
 
@@ -1105,7 +1105,7 @@
        (reward-pm-list! $pms $actual-error $current-cycle))
 
      ; Reward latent variables (WITH coherence check)
-     (let $lvs (collapse (match &self (latent-member $name $obs $w) $name))
+     (let $lvs (collapse (match &state (latent-member $name $obs $w) $name))
        (reward-lv-coherent-list! $lvs $obs $actual-error $current-cycle $all-errors))
 
      ; Reward promoted observables (Phase 3)
@@ -1345,23 +1345,23 @@
 ; Detailed passive model report
 (= (passive-model-report)
    (collapse
-     (match &self (passive-model $c $e $l $w $t)
+     (match &state (passive-model $c $e $l $w $t)
        (let* (
          ($energy (get-pm-energy $c $e))
          ($created (get-pm-created $c $e))
-         (($preds $succs) (match &self (prediction-stats passive-model $c $e $p $s) ($p $s)))
+         (($preds $succs) (match &state (prediction-stats passive-model $c $e $p $s) ($p $s)))
        )
        (pm-report $c $e $l $w $t $energy $created $preds $succs)))))
 
 ; Detailed latent variable report
 (= (latent-variable-report)
    (collapse
-     (match &self (latent-variable $name)
+     (match &state (latent-variable $name)
        (let* (
          ($members (get-latent-members $name))
          ($energy (get-lv-energy $name))
          ($created (get-lv-created $name))
-         (($preds $succs) (match &self (prediction-stats latent-var $name $p $s) ($p $s)))
+         (($preds $succs) (match &state (prediction-stats latent-var $name $p $s) ($p $s)))
        )
        (lv-report $name $members $energy $created $preds $succs)))))
 
