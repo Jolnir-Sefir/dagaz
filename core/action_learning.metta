@@ -22,10 +22,10 @@
      snapshot-taken))
 
 (= (record-last-action! $action)
-   (let $old (collapse (match &self (last-action-taken $a) (last-action-taken $a)))
+   (let $old (collapse (match &state (last-action-taken $a) (last-action-taken $a)))
      (sequential
        (remove-list! $old)
-       (add-atom &self (last-action-taken $action))
+       (add-atom &state (last-action-taken $action))
        done)))
 
 (= (store-belief-snapshot!)
@@ -36,22 +36,22 @@
 (= (store-snapshot-list ()) done)
 (= (store-snapshot-list (($obs $val $prec) . $rest))
    (sequential
-     (add-atom &self (pre-action-belief $obs $val $prec))
+     (add-atom &state (pre-action-belief $obs $val $prec))
      (store-snapshot-list $rest)))
 
 (= (clear-snapshot!)
    (sequential
-     (let $old-beliefs (collapse (match &self (pre-action-belief $o $v $p)
+     (let $old-beliefs (collapse (match &state (pre-action-belief $o $v $p)
                                               (pre-action-belief $o $v $p)))
        (remove-list! $old-beliefs))
-     (let $old-action (collapse (match &self (last-action-taken $a)
+     (let $old-action (collapse (match &state (last-action-taken $a)
                                              (last-action-taken $a)))
        (remove-list! $old-action))
      cleared))
 
 (= (remove-list! ()) done)
 (= (remove-list! ($a . $rest))
-   (sequential (remove-atom &self $a) (remove-list! $rest)))
+   (sequential (remove-atom &state $a) (remove-list! $rest)))
 
 
 ; =============================================================================
@@ -59,7 +59,7 @@
 ; =============================================================================
 
 (= (learn-from-last-action!)
-   (let $action-result (collapse (match &self (last-action-taken $a) $a))
+   (let $action-result (collapse (match &state (last-action-taken $a) $a))
      (if (== $action-result ())
          no-previous-action  
          (let $action (list-head-safe $action-result)
@@ -72,7 +72,7 @@
 (= (list-head-safe ()) none)
 
 (= (learn-action-models! $action)
-   (let $snapshots (collapse (match &self (pre-action-belief $obs $old-v $old-p)
+   (let $snapshots (collapse (match &state (pre-action-belief $obs $old-v $old-p)
                                           ($obs $old-v $old-p)))
      (learn-from-snapshots $action $snapshots)))
 
