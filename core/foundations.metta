@@ -254,6 +254,13 @@
 (config lookback-window 3)                  ; Error trace buffer depth (cycles)
 (config gestation-period 3)                 ; Grace period for new structure
 
+; --- Viability ---
+; The danger zone is the fraction of the viable range where the viability
+; penalty activates. At 0.35, the bottom 35% of the viable range incurs
+; graduated pressure. Precision AMPLIFIES this pressure — certainty about
+; proximity to death is the most urgent signal, not the least.
+(config viability-danger-zone 0.35)
+
 ; Structural generation budget
 ;
 ; The fixed value of 5 is adequate up to ~14 observables. Beyond that,
