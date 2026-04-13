@@ -269,14 +269,14 @@
 ; Each entry: what was intended, what was produced, how well they matched.
 
 (= (record-proprioceptive! $action $fidelity $gate-result $time)
-   (add-atom &self (proprioceptive-log $action $fidelity $gate-result $time)))
+   (add-atom &state (proprioceptive-log $action $fidelity $gate-result $time)))
 
 ; Clean old proprioceptive logs
 (= (clean-proprioceptive-logs! $current-time)
    (let* (
      ($window (get-config lookback-window))
      ($cutoff (- $current-time (* $window 5)))   ; Keep 5x lookback (longer for fine-tuning data)
-     ($old (collapse (match &self (proprioceptive-log $a $f $g $time)
+     ($old (collapse (match &state (proprioceptive-log $a $f $g $time)
        (if (< $time $cutoff) (proprioceptive-log $a $f $g $time) ()))))
    )
    (remove-old-perceptions! $old)))    ; Reuse cleanup helper from perception.metta
@@ -300,13 +300,13 @@
 
 ; Recent proprioceptive history
 (= (recent-proprioception)
-   (collapse (match &self (proprioceptive-log $action $fidelity $gate $time)
+   (collapse (match &state (proprioceptive-log $action $fidelity $gate $time)
      (proprio-entry $time $action (fidelity $fidelity) $gate))))
 
 ; Average fidelity over recent history (for self-model integration)
 (= (average-recent-fidelity)
    (let* (
-     ($entries (collapse (match &self (proprioceptive-log $a $f $g $t) $f)))
+     ($entries (collapse (match &state (proprioceptive-log $a $f $g $t) $f)))
      ($n (length $entries))
    )
    (if (== $n 0)
@@ -316,7 +316,7 @@
 ; How often has the assertion gate blocked recently?
 (= (assertion-gate-block-rate)
    (let* (
-     ($all (collapse (match &self (proprioceptive-log $a $f $g $t) $g)))
+     ($all (collapse (match &state (proprioceptive-log $a $f $g $t) $g)))
      ($n (length $all))
      ($blocks (list-count (lambda $g (not (== $g gate-pass))) $all))
    )
