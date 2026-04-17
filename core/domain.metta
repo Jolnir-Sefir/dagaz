@@ -129,14 +129,24 @@
 (= (domain-actions)
    (collapse (match &self (domain-action $a) $a)))
 
-; --- Rewrite (base-actions) to use domain declarations ---
-; Removes the hardcoded default from actions.metta and installs
-; a version that reads from domain-action declarations.
+; --- Install domain actions into the active-action-set ---
+; core/actions.metta defines (base-actions) to read from
+; (active-action-set $actions) in &state. This function writes that
+; atom from the domain-action declarations. No Python-side &self
+; mutation required — the default base-actions definition does the
+; right thing as long as active-action-set is populated.
 (= (install-domain-base-actions!)
    (let $actions (domain-actions)
      (if (list-empty? $actions)
          (domain-error no-actions-declared)
-         done)))
+         (sequential
+           ; Remove any existing active-action-set atoms (idempotent)
+           (let $old (collapse (match &state (active-action-set $a)
+                                      (active-action-set $a)))
+             (remove-state-atoms! $old))
+           ; Install the current domain's action set
+           (add-atom &state (active-action-set $actions))
+           active-action-set-installed))))
 
 ; --- Register domain actions for policy generation ---
 ; Clears any existing (any-action) entries and re-registers
@@ -144,6 +154,18 @@
 (= (clear-any-action-registry!) done)
 ; This is handled Python-side or via the loader since we can't
 ; easily pattern-match on (= (any-action) $x) from MeTTa.
+
+; --- Domain membership predicates ---
+; Used by clear-domain-state! to decide whether a &state atom belongs
+; to the domain (clear it, the domain will re-declare) or to a core
+; module like self_model (preserve it).
+(= (is-domain-observable? $obs)
+   (let $r (collapse (match &self (domain-observable $obs $v $p) True))
+     (if (== $r ()) False True)))
+
+(= (is-domain-action? $action)
+   (let $r (collapse (match &self (domain-action $action) True))
+     (if (== $r ()) False True)))
 
 ; --- Initialize beliefs from domain observables ---
 (= (init-domain-beliefs! ()) done)
@@ -183,9 +205,11 @@
 ; --- Master initialization ---
 (= (init-domain!)
    (sequential
-     ; Clear any existing domain state from core module defaults.
-     ; This ensures the domain module is the single source of truth
-     ; for beliefs, preferences, viability bounds, action models, and costs.
+     ; Clear domain-owned state from core module defaults so the domain
+     ; is authoritative for its declared observables/actions. Atoms
+     ; belonging to core modules (self_model, etc.) are preserved — only
+     ; atoms whose observable/action the domain is about to redeclare
+     ; get cleared.
      (clear-domain-state!)
 
      ; Beliefs from observables
@@ -208,25 +232,61 @@
      (let $costs (collapse (match &self (domain-action-cost $a $c $conf) ($a $c $conf)))
        (init-domain-costs! $costs))
 
+     ; Install the active-action-set so (base-actions) resolves
+     (install-domain-base-actions!)
+
      domain-initialized))
 
-; --- Clear existing domain state ---
-; Removes module-loaded defaults so domain declarations are authoritative.
-; Uses specific patterns per atom type to ensure exact tuple matching
-; for remove-atom (generic cons-cell decomposition changes tuple shape).
+; --- Clear existing domain state (selective) ---
+;
+; Removes only atoms whose observable/action is declared in this domain.
+; Atoms for observables/actions declared elsewhere (e.g. self_model's
+; preferences on grounding-completeness, or actions.metta's action-models
+; for reflect) are preserved. This lets core modules contribute to &state
+; without being wiped on every domain re-init.
+;
+; Rules:
+;   belief/preference/viability-bound — cleared iff observable is a
+;     domain-observable
+;   action-model — cleared iff BOTH the action is a domain-action AND
+;     the observable is a domain-observable (preserves e.g.
+;     (action-model reflect self-competence ...) when the domain
+;     doesn't declare reflect)
+;   action-cost — cleared iff the action is a domain-action
 (= (clear-domain-state!)
    (sequential
-     (let $old (collapse (match &state (belief $o $v $p) (belief $o $v $p)))
+     (let $old (collapse
+                 (match &state (belief $o $v $p)
+                   (if (is-domain-observable? $o)
+                       (belief $o $v $p)
+                       (empty))))
        (remove-state-atoms! $old))
-     (let $old (collapse (match &state (preference $o $t $i) (preference $o $t $i)))
+     (let $old (collapse
+                 (match &state (preference $o $t $i)
+                   (if (is-domain-observable? $o)
+                       (preference $o $t $i)
+                       (empty))))
        (remove-state-atoms! $old))
-     (let $old (collapse (match &state (viability-bound $o $min $max) (viability-bound $o $min $max)))
+     (let $old (collapse
+                 (match &state (viability-bound $o $min $max)
+                   (if (is-domain-observable? $o)
+                       (viability-bound $o $min $max)
+                       (empty))))
        (remove-state-atoms! $old))
-     (let $old (collapse (match &state (action-model $a $o $vd $pd $c) (action-model $a $o $vd $pd $c)))
+     (let $old (collapse
+                 (match &state (action-model $a $o $vd $pd $c)
+                   (if (and (is-domain-action? $a)
+                            (is-domain-observable? $o))
+                       (action-model $a $o $vd $pd $c)
+                       (empty))))
        (remove-state-atoms! $old))
-     (let $old (collapse (match &state (action-cost $a $c $conf) (action-cost $a $c $conf)))
+     (let $old (collapse
+                 (match &state (action-cost $a $c $conf)
+                   (if (is-domain-action? $a)
+                       (action-cost $a $c $conf)
+                       (empty))))
        (remove-state-atoms! $old))
-     done))
+     domain-state-cleared))
 
 (= (remove-state-atoms! ()) done)
 (= (remove-state-atoms! ($a . $rest))
